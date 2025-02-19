@@ -14,10 +14,10 @@ luabundler
 a way to run bash scripts
 
 ```bash
-	git clone https://github.com/uosq/lbox-garlic-bread.git
-	cd lbox-garlic-bread
-	chmod u+x build.sh
-	./build.sh
+git clone https://github.com/uosq/lbox-garlic-bread.git
+cd lbox-garlic-bread
+chmod u+x build.sh
+./build.sh
 ```
 
 The file is exported to: `build/garlic-bread.lua`
