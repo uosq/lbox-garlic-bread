@@ -6,7 +6,7 @@
 
 #### Build instructions
 
-You shouldn't need to build the script manually, see <span style="color: green">Releases</span> page to find a file that works right
+You shouldn't need to build the script manually, see $\color{red}{\textsf{Releases}}$ page to find a file that works right
 
 - Requirements:
 npm
@@ -20,7 +20,7 @@ chmod u+x build.sh
 ./build.sh
 ```
 
-The file is exported to: <span style="color: maroon">build/garlic-bread.lua</span>
+The file is exported to $\color{maroon}{\textsf{build/garlic-bread.lua}}$
 
 ## TODO:
 
