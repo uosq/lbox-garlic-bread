@@ -2,7 +2,7 @@ require("src.globals")
 require("src.bitbuf")
 require("src.anticheat")
 
-local aimbot = require("src.aimbot-rewrite")
+local aimbot = require("src.aimbot")
 local tickshift = require("src.tickshift")
 local antiaim = require("src.antiaim")
 local visuals = require("src.visuals")

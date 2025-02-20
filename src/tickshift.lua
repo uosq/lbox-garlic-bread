@@ -102,6 +102,7 @@ function HandleWarp(msg)
 		CLC_Move:WriteToBitBuffer(buffer, 2, 1)
 		msg:ReadFromBitBuffer(buffer)
 		buffer:Delete()
+
 		--moveMsg:init()
 		--msg:ReadFromBitBuffer(moveMsg.buffer)
 		charged_ticks = charged_ticks - 1

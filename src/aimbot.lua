@@ -445,7 +445,7 @@ function aimbot.RunHitscan(usercmd)
 		or not m_settings.bullet
 	then
 		GB_GLOBALS.m_bIsAimbotShooting = false
-		GB_GLOBALS.m_hAimbotTarget = nil
+		GB_GLOBALS.m_nAimbotTarget = nil
 		return
 	end
 
@@ -472,7 +472,7 @@ function aimbot.RunHitscan(usercmd)
 		m_viewangles = usercmd.viewangles
 
 		GB_GLOBALS.m_bIsAimbotShooting = true
-		GB_GLOBALS.m_hAimbotTarget = m_target
+		GB_GLOBALS.m_nAimbotTarget = m_target
 	end
 end
 
@@ -519,7 +519,7 @@ end
 
 local function ShootWeapon(usercmd, target)
 	GB_GLOBALS.m_bIsAimbotShooting = true
-	GB_GLOBALS.m_hAimbotTarget = target
+	GB_GLOBALS.m_nAimbotTarget = target
 	usercmd.buttons = usercmd.buttons | IN_ATTACK
 end
 
@@ -534,7 +534,7 @@ function aimbot.RunMelee(usercmd)
 		or not CanWeaponShootSimple()
 	then
 		GB_GLOBALS.m_bIsAimbotShooting = false
-		GB_GLOBALS.m_hAimbotTarget = nil
+		GB_GLOBALS.m_nAimbotTarget = nil
 		return
 	end
 

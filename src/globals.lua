@@ -2,6 +2,7 @@ GB_GLOBALS = {
 	usercmd_buttons = nil,
 	m_hLocalPlayer = nil,
 	m_hActiveWeapon = nil,
+	m_Team = nil,
 
 	m_vecShootPos = nil,
 	m_angViewAngles = nil,
@@ -9,7 +10,7 @@ GB_GLOBALS = {
 	m_bIsStacRunning = false,
 
 	m_bIsAimbotShooting = false,
-	m_hAimbotTarget = nil,
+	m_nAimbotTarget = nil,
 
 	m_bWarping = false,
 	m_bRecharging = false,
@@ -65,11 +66,12 @@ local function UpdateGlobals(usercmd)
 		GB_GLOBALS.m_vecShootPos = GB_GLOBALS.m_hLocalPlayer:GetAbsOrigin()
 			+ GB_GLOBALS.m_hLocalPlayer:GetPropVector("m_vecViewOffset[0]")
 
+		GB_GLOBALS.m_Team = GB_GLOBALS.m_hLocalPlayer:GetTeamNumber()
 		GB_GLOBALS.usercmd_buttons = usercmd.buttons
 	end
 
 	--- m_bIsStacRunning is updated in anticheat.lua
-	--- m_hAimbotTarget, m_bIsAimbotShooting is updated in aimbot.lua
+	--- m_nAimbotTarget, m_bIsAimbotShooting is updated in aimbot.lua
 	--- m_bWarping, m_bRecharging is updated in tickshift.lua
 end
 

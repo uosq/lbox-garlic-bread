@@ -11,6 +11,7 @@ function antiaim.CreateMove(usercmd)
 		and not GB_GLOBALS.m_bWarping
 		and not GB_GLOBALS.m_bRecharging
 	then
+		--- make sure we aren't overchoking
 		if clientstate:GetChokedCommands() >= 21 then
 			usercmd.sendpacket = true
 			return

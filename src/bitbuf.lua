@@ -3,6 +3,7 @@
 local NEW_COMMANDS_SIZE = 4
 local BACKUP_COMMANDS_SIZE = 3
 local MSG_SIZE = 6
+local WORD_SIZE = 16
 
 --local net_SetConVar = 5
 local clc_Move = 9
@@ -46,6 +47,7 @@ function NET_SetConVar:ReadFromBitBuffer(buffer)
 	end
 
 	buffer:Reset()
+	buffer:SetCurBit(MSG_SIZE)
 	return convars
 end
 
@@ -59,12 +61,12 @@ function CLC_Move:WriteToBitBuffer(buffer, new_commands, backup_commands)
 	buffer:WriteInt(clc_Move, MSG_SIZE)
 	local length = buffer:GetDataBitsLength()
 
-	buffer:WriteInt(new_commands, NEW_COMMANDS_SIZE)
-	buffer:WriteInt(backup_commands, BACKUP_COMMANDS_SIZE)
-	buffer:WriteInt(length, 16)
+	buffer:WriteInt(new_commands, NEW_COMMANDS_SIZE) --- m_nNewCommands
+	buffer:WriteInt(backup_commands, BACKUP_COMMANDS_SIZE) --- m_nBackupCommands
+	buffer:WriteInt(length, WORD_SIZE) --- m_nLength
 
 	buffer:Reset()
-	buffer:SetCurBit(6)
+	buffer:SetCurBit(MSG_SIZE) --- skip msg type
 end
 
 ---@param buffer BitBuffer
@@ -75,7 +77,7 @@ function CLC_Move:ReadFromBitBuffer(buffer)
 	local new_commands, backup_commands, length
 	new_commands = buffer:ReadInt(NEW_COMMANDS_SIZE)
 	backup_commands = buffer:ReadInt(BACKUP_COMMANDS_SIZE)
-	length = buffer:ReadInt(16)
+	length = buffer:ReadInt(WORD_SIZE)
 
 	buffer:Reset()
 	buffer:SetCurBit(MSG_SIZE)

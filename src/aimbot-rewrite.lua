@@ -36,6 +36,8 @@ local settings = {
 	},
 }
 
+local m_bReadyToBackstab = false
+
 local HITBOXES = {
 	Head = 1,
 	Body = 3,
@@ -58,6 +60,24 @@ local HEADSHOT_WEAPONS_INDEXES = {
 	[61] = true, --- AMBASSADOR
 	[1006] = true, --- FESTIVE AMBASSADOR
 }
+
+local ENGINEER_CLASS = 9
+local MAX_UPGRADE_LEVEL = 3
+local BUILDINGS = {
+	CObjectSentrygun = true,
+	CObjectDispenser = true,
+	CObjectTeleporter = true,
+}
+
+--- Cache some important functions
+
+local TraceLine = engine.TraceLine
+local sqrt = math.sqrt
+local atan = math.atan
+local PI = math.pi
+local RADPI = 180 / PI
+
+---
 
 --- some people call it eye position
 local function GetShootPosition()
@@ -125,13 +145,67 @@ end
 
 ---@param vec Vector3
 local function ToAngle(vec)
-	local hyp = math.sqrt((vec.x ^ 2 + vec.y ^ 2))
-	return Vector3(math.atan(-vec.z, hyp) * (180 / math.pi), math.atan(vec.y, vec.x) * (180 / math.pi), 0)
+	local hyp = sqrt((vec.x ^ 2 + vec.y ^ 2))
+	return Vector3(atan(-vec.z, hyp) * RADPI, atan(vec.y, vec.x) * RADPI, 0)
+end
+
+---@param usercmd UserCmd
+---@param targetIndex integer
+local function MakeWeaponShoot(usercmd, targetIndex)
+	usercmd.buttons = usercmd.buttons | IN_ATTACK
+	GB_GLOBALS.m_nAimbotTarget = targetIndex
+	GB_GLOBALS.m_bIsAimbotShooting = true
+end
+
+--- Only run this in CreateMove, after GB_GLOBALS->localplayer and GB_GLOBALS->weapon are valid!
+---@param usercmd UserCmd
+local function RunMelee(usercmd)
+	if GB_GLOBALS.m_hActiveWeapon:IsMeleeWeapon() then
+		local swing_trace = GB_GLOBALS.m_hActiveWeapon:DoSwingTrace()
+
+		if swing_trace and swing_trace.entity and swing_trace.fraction >= 0.98 then
+			local entity = swing_trace.entity
+			local team = entity:GetTeamNumber()
+			local index = entity:GetIndex()
+			if
+				settings.aim_friendly_buildings
+				and BUILDINGS[entity:GetClass()]
+				and GB_GLOBALS.m_hLocalPlayer:GetPropInt("m_PlayerClass", "m_iClass") == ENGINEER_CLASS
+				and (
+					(entity:GetHealth() >= 1 and entity:GetHealth() < entity:GetMaxHealth())
+					or (entity:GetPropInt("m_iUpgradeLevel") < MAX_UPGRADE_LEVEL)
+				)
+			then
+				MakeWeaponShoot(usercmd, index)
+				return true
+			end
+
+			if team ~= GB_GLOBALS.m_Team then
+				if
+					GB_GLOBALS.m_hActiveWeapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_KNIFE and settings.autobackstab
+				then
+					if m_bReadyToBackstab then
+						MakeWeaponShoot(usercmd, index)
+					end
+
+					--- dont run after this or it will try to butterknife
+					GB_GLOBALS.m_nAimbotTarget = index
+					GB_GLOBALS.m_bIsAimbotShooting = true
+					return true
+				end
+
+				MakeWeaponShoot(usercmd, index)
+				return true
+			end
+		end
+	end
+	return false
 end
 
 ---@param usercmd UserCmd
 local function CreateMove(usercmd)
 	GB_GLOBALS.m_bIsAimbotShooting = false
+	GB_GLOBALS.m_nAimbotTarget = nil
 
 	if not input.IsButtonDown(settings.key) then
 		return
@@ -145,7 +219,12 @@ local function CreateMove(usercmd)
 		return
 	end
 
-	local best_angle, best_fov = nil, settings.fov
+	--- if it returns true, it means it was a melee weapon and it did the proper math for them
+	if RunMelee(usercmd) then
+		return
+	end
+
+	local best_angle, best_fov, target = nil, settings.fov, nil
 
 	local players = entities.FindByClass("CTFPlayer")
 
@@ -173,7 +252,7 @@ local function CreateMove(usercmd)
 		end
 
 		local punchangles = GB_GLOBALS.m_bNoRecoil and GB_GLOBALS.m_hActiveWeapon:GetPropVector("m_vecPunchAngle")
-		or Vector3()
+			or Vector3()
 		if not punchangles then
 			goto continue
 		end
@@ -183,29 +262,30 @@ local function CreateMove(usercmd)
 			goto continue
 		end
 
-		local trace = engine.TraceLine(shoot_pos, GetBoneOrigin(bones[weapon_best_bone]), MASK_SHOT_HULL)
+		local trace = TraceLine(shoot_pos, GetBoneOrigin(bones[weapon_best_bone]), MASK_SHOT_HULL)
 
 		--- can't do multipointing right now cuz there is no way for me to test it (lmaobox is not updated yet)
 		if trace and trace.entity and trace.fraction >= 0.98 then
 			local angle = ToAngle(GetBoneOrigin(bones[weapon_best_bone]) - shoot_pos)
 				- (usercmd.viewangles - punchangles)
-			local fov = math.sqrt(angle.x ^ 2 + angle.y ^ 2)
+			local fov = sqrt(angle.x ^ 2 + angle.y ^ 2)
 			if fov < best_fov then
 				best_fov = fov
 				best_angle = angle
+				target = player:GetIndex() --- not saving the whole entity here, too much memory used!
 			end
 		end
 		::continue::
 	end
 
-	local can_shoot = CanWeaponShoot()
+	local can_shoot = CanWeaponShoot() or (usercmd.buttons & IN_ATTACK) ~= 0 -- if autoshoot is off and player is trying to shoot, we aim for them
 
 	if best_angle then
 		if can_shoot then
 			usercmd.viewangles = usercmd.viewangles
 				+ (
 					settings.mode == aimbot_mode.smooth
-						and vector.Multiply(best_angle, (settings.smooth_value / 100))
+						and vector.Multiply(best_angle, (settings.smooth_value * 0.01 --[[/100]]))
 					or best_angle
 				)
 		end
@@ -213,18 +293,32 @@ local function CreateMove(usercmd)
 		if aimbot_mode.plain and can_shoot then
 			engine.SetViewAngles(EulerAngles(best_angle:Unpack()))
 		elseif aimbot_mode.smooth then
-			local smoothed = vector.Multiply(best_angle, (settings.smooth_value / 100))
+			local smoothed = vector.Multiply(best_angle, (settings.smooth_value * 0.01 --[[/100]]))
 			engine.SetViewAngles(EulerAngles(smoothed:Unpack()))
 		end
 
-		if can_shoot and settings.autoshoot then
+		if can_shoot then
 			usercmd.buttons = usercmd.buttons | IN_ATTACK
 			GB_GLOBALS.m_bIsAimbotShooting = true
+			GB_GLOBALS.m_nAimbotTarget = target
 		end
+	end
+end
+
+---@param stage E_ClientFrameStage
+local function FrameStageNotify(stage)
+	if
+		stage == E_ClientFrameStage.FRAME_NET_UPDATE_END
+		and GB_GLOBALS
+		and GB_GLOBALS.m_hLocalPlayer
+		and GB_GLOBALS.m_hActiveWeapon
+	then
+		m_bReadyToBackstab = GB_GLOBALS.m_hActiveWeapon:GetPropBool("m_bReadyToBackstab") or false
 	end
 end
 
 local aimbot = {}
 aimbot.CreateMove = CreateMove
+aimbot.FrameStageNotify = FrameStageNotify
 
 return aimbot
