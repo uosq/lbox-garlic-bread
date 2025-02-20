@@ -8,10 +8,11 @@
 
 You shouldn't need to build the script manually, see $\textcolor{green}{\textsf{Releases}}$ page to find a file that works right
 
-- Requirements:
-npm
-luabundler
-a way to run bash scripts
+**Requirements:**
+
+- npm
+- luabundler
+- a way to run bash scripts
 
 ```bash
 git clone https://github.com/uosq/lbox-garlic-bread.git
