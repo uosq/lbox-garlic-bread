@@ -6,7 +6,7 @@
 
 #### Build instructions
 
-You shouldn't need to build the script manually, see $\color{red}{\textsf{Releases}}$ page to find a file that works right
+You shouldn't need to build the script manually, see $\textcolor{green}{\textsf{Releases}}$ page to find a file that works right
 
 - Requirements:
 npm
