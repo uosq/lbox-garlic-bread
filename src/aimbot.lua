@@ -1,3 +1,7 @@
+--[[
+  This is deprecated, i'm making a new version of this
+--]]
+
 ---@diagnostic disable:cast-local-type
 --- doesnt use GB_GLOBALS for performance reasons
 

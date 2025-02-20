@@ -94,14 +94,14 @@ function HandleWarp(msg)
 	end
 
 	if GB_GLOBALS.m_hLocalPlayer and GB_GLOBALS.m_hLocalPlayer:IsAlive() and charged_ticks > 0 and CanShift() then
-		local moveMsg = clc_Move()
-		-- not commenting on moveMsg to not break build script
+		--local moveMsg = clc_Move()
 
+		--- the new BitBuffer lib
 		local buffer = BitBuffer()
 		buffer:Reset()
 		CLC_Move:WriteToBitBuffer(buffer, 2, 1)
 		msg:ReadFromBitBuffer(buffer)
-
+		buffer:Delete()
 		--moveMsg:init()
 		--msg:ReadFromBitBuffer(moveMsg.buffer)
 		charged_ticks = charged_ticks - 1
