@@ -162,11 +162,6 @@ local function CreateMove(usercmd)
 			goto continue
 		end
 
-		local bones = player:SetupBones()
-		if not bones then
-			goto continue
-		end
-
 		local weapon_best_bone = GetBestBoneForWeapon()
 		if not weapon_best_bone then
 			goto continue
@@ -178,13 +173,19 @@ local function CreateMove(usercmd)
 		end
 
 		local punchangles = GB_GLOBALS.m_bNoRecoil and GB_GLOBALS.m_hActiveWeapon:GetPropVector("m_vecPunchAngle")
-			or Vector3()
+		or Vector3()
 		if not punchangles then
+			goto continue
+		end
+
+		local bones = player:SetupBones()
+		if not bones then
 			goto continue
 		end
 
 		local trace = engine.TraceLine(shoot_pos, GetBoneOrigin(bones[weapon_best_bone]), MASK_SHOT_HULL)
 
+		--- can't do multipointing right now cuz there is no way for me to test it (lmaobox is not updated yet)
 		if trace and trace.entity and trace.fraction >= 0.98 then
 			local angle = ToAngle(GetBoneOrigin(bones[weapon_best_bone]) - shoot_pos)
 				- (usercmd.viewangles - punchangles)

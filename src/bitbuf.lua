@@ -1,22 +1,24 @@
+--- untested library as LMAOBOX is not updated!
+
 local NEW_COMMANDS_SIZE = 4
 local BACKUP_COMMANDS_SIZE = 3
 local MSG_SIZE = 6
 
-local net_SetConVar = 5
+--local net_SetConVar = 5
 local clc_Move = 9
 
 NET_SetConVar = {}
 CLC_Move = {}
 
 ---@class ConVar
----@field name string # Size 260
----@field value string # Size 260
+---@field name string # size 260
+---@field value string # size 260
 
 ---@param buffer BitBuffer
 ---@param convars ConVar[]
 function NET_SetConVar:WriteToBitBuffer(buffer, convars)
 	buffer:Reset()
-	--buffer:WriteInt(net_SetConVar, MSG_SIZE) currently we dont need this
+	--buffer:WriteInt(net_SetConVar, MSG_SIZE) we currently dont need this
 
 	local numvars = #convars
 	buffer:WriteByte(numvars)
@@ -53,6 +55,7 @@ end
 function CLC_Move:WriteToBitBuffer(buffer, new_commands, backup_commands)
 	buffer:Reset()
 
+	-- im not sure if we need to add the message type, but just in case its there
 	buffer:WriteInt(clc_Move, MSG_SIZE)
 	local length = buffer:GetDataBitsLength()
 

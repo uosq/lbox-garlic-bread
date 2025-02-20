@@ -130,6 +130,7 @@ local function GetHitboxPos(entity, selected_hitbox)
 	return nil
 end
 
+---@deprecated
 local function GetHitboxPosCache(selected_hitbox, hitboxes, boneMatrices)
 	--boneMatrices is an array of 3x4 float matrices
 	local hitbox = hitboxes[selected_hitbox]
