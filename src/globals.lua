@@ -26,6 +26,8 @@ GB_GLOBALS = {
 	end,
 
 	m_flCustomFOV = 90,
+	m_nPreAspectRatio = 0,
+	m_nAspectRatio = 1.78,
 
 	m_bNoRecoil = true,
 
@@ -55,6 +57,8 @@ GB_GLOBALS = {
 		fake_pitch = false,
 		real_pitch = true,
 	},
+
+	m_bBhopEnabled = false,
 }
 
 ---@param usercmd UserCmd

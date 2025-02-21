@@ -1,66 +1,16 @@
---[[
-  This is deprecated, i'm making a new version of this
---]]
+local aimbot_mode = { plain = 1, smooth = 2, silent = 3 }
 
----@diagnostic disable:cast-local-type
---- doesnt use GB_GLOBALS for performance reasons
-
----@type Entity?, boolean, Vector3?, EulerAngles?, EulerAngles?, Entity?, Vector3?, Vector3?, Entity?, number?, EulerAngles?
-local m_localplayer, m_debug, m_target_pos, m_viewangles, m_target_angle, m_target, m_localplayer_pos, m_shootpos, m_weapon, m_closest_fov, m_target_angle_diff
-
-GB_GLOBALS.m_bIsAimbotShooting = false
-
----@type boolean
-local m_bReadyToBackstab = false
-
-local lastFire = 0
-local nextAttack = 0
-local old_weapon = nil
-
-local m_hitboxes = {
-	Head = 1,
-	Body = 3,
-	--LeftHand = 9,
-	LeftArm = 8,
-	--RightHand = 12,
-	RightArm = 11,
-	--LeftFeet = 15,
-	--RightFeet = 18,
-	LeftLeg = 14,
-	RightLeg = 17,
-}
-
-local SpecialWeaponIndexes = {
-	[230] = "SYDNEY_SLEEPER",
-	[61] = "AMBASSADOR",
-	[1006] = "FESTIVE AMBASSADOR",
-}
-
-local m_hitbox_center = 3
-
-m_debug = false
-local M_RADPI = 57.295779513082
-
-local aimbot = {}
-
-local aimbot_mode = {
-	plain = 1,
-	smooth = 2,
-	silent = 3,
-}
-
-local m_settings = {
-
-	key = E_ButtonCode.KEY_LSHIFT,
+local settings = {
 	fov = 30,
+	key = E_ButtonCode.KEY_LSHIFT,
 	autoshoot = true,
 	mode = aimbot_mode.silent,
 	lock_aim = false,
-	smooth_value = 60,
+	smooth_value = 35, --- lower value, smoother aimbot (10 = very smooth, 100 = basically plain aimbot)
 	melee_rage = false,
 
 	--- should aimbot run when using one of them?
-	bullet = true,
+	hitscan = true,
 	melee = true,
 	projectile = true,
 
@@ -82,527 +32,484 @@ local m_settings = {
 		players = true,
 		npcs = true,
 		sentries = true,
-		other_buildings = false,
+		other_buildings = true,
 	},
 }
 
-local BUILDINGS = {
-	CObjectSentrygun = true,
-	CObjectTeleporter = true,
-	CObjectDispenser = true,
+local m_bReadyToBackstab = false
+
+---@type Entity?, Entity?, integer?
+local localplayer, weapon, m_team = nil, nil, nil
+
+local width, height = draw.GetScreenSize()
+
+--- TODO: rename later to CLASS_BONES
+local CLASS_HITBOXES = require("src.hitboxes")
+
+--- only works with STUDIO models
+--[[local HITBOXES = {
+	Head = 6,
+	Body = 3,
+	--LeftHand = 9,
+	LeftArm = 8,
+	--RightHand = 12,
+	RightArm = 11,
+	--LeftFeet = 15,
+	--RightFeet = 18,
+	LeftLeg = 14,
+	RightLeg = 17,
+}]]
+
+local lastFire = 0
+local nextAttack = 0
+local old_weapon = nil
+
+local HEADSHOT_WEAPONS_INDEXES = {
+	--[230] = true, --- SYDNEY SLEEPER i dont think a sydney sleeper is necessary here
+	[61] = true, --- AMBASSADOR
+	[1006] = true, --- FESTIVE AMBASSADOR
 }
 
-function aimbot:SetLocalPlayer()
-	m_localplayer = entities:GetLocalPlayer()
-	if m_localplayer then
-		m_localplayer_pos = m_localplayer:GetAbsOrigin()
-		m_shootpos = m_localplayer_pos + m_localplayer:GetPropVector("m_vecViewOffset[0]")
-		m_weapon = m_localplayer:GetPropEntity("m_hActiveWeapon")
-	else
-		m_localplayer_pos = nil
-		m_shootpos = nil
-		m_weapon = nil
+GB_AIMBOT_GETSETTINGS = function()
+	return settings
+end
+
+--- stuff used by melee aimbot
+local ENGINEER_CLASS = 9
+local MAX_UPGRADE_LEVEL = 3
+local BUILDINGS = {
+	CObjectSentrygun = true,
+	CObjectDispenser = true,
+	CObjectTeleporter = true,
+}
+
+--- stuff used by hitscan aimbot
+local AcceptableEntities = {
+	CObjectSentrygun = true,
+	CObjectDispenser = true,
+	CObjectTeleporter = true,
+	CTFPlayer = true,
+}
+
+--- Cache some important functions
+
+local TraceLine = engine.TraceLine
+local sqrt = math.sqrt
+local atan = math.atan
+local PI = math.pi
+local RADPI = 180 / PI
+local vecMultiply = vector.Multiply
+local GetByIndex = entities.GetByIndex
+
+---
+
+--- some people call it eye position
+local function GetShootPosition()
+	if localplayer then
+		return localplayer:GetAbsOrigin() + localplayer:GetPropVector("m_vecViewOffset[0]")
 	end
-end
-
-function aimbot:GetSettings()
-	return m_settings
-end
-
-function aimbot:SetDebug(bool)
-	m_debug = bool
-end
-
----@param entity Entity
----@param selected_hitbox integer
----@return Vector3?
-local function GetHitboxPos(entity, selected_hitbox)
-	local boneMatrices = entity:SetupBones()
-	local boneMatrix = boneMatrices[selected_hitbox]
-	if boneMatrix then
-		local pos = Vector3(boneMatrix[1][4], boneMatrix[2][4], boneMatrix[3][4])
-		if m_debug then
-			warn(string.format("GetHitboxPos: [%s, %s, %s]", pos:Unpack()))
-		end
-		return pos
-	end
-
 	return nil
 end
 
----@deprecated
-local function GetHitboxPosCache(selected_hitbox, hitboxes, boneMatrices)
-	--boneMatrices is an array of 3x4 float matrices
-	local hitbox = hitboxes[selected_hitbox]
-	local bone = hitbox:GetBone()
-	local boneMatrix = boneMatrices[bone]
-	if boneMatrix then
-		local pos = Vector3(boneMatrix[1][4], boneMatrix[2][4], boneMatrix[3][4])
-		if m_debug then
-			warn(string.format("GetHitboxPos: [%s, %s, %s]", pos:Unpack()))
-		end
-		return pos
-	end
+--- returns true for head and false for body
+local function ShouldAimAtHead()
+	if localplayer and weapon then
+		--[[
+    if weapon_index and HEADSHOT_WEAPONS_INDEXES[weapon_index] then
+      return HITBOXES.Head
+    end]]
 
+		local weapon_id = weapon:GetWeaponID()
+		local Head, Body = true, false
+
+		if
+			weapon_id == E_WeaponBaseID.TF_WEAPON_SNIPERRIFLE
+			or weapon_id == E_WeaponBaseID.TF_WEAPON_SNIPERRIFLE_DECAP
+		then
+			return localplayer:InCond(E_TFCOND.TFCond_Zoomed) and Head or Body
+		end
+
+		local weapon_index = weapon:GetPropInt("m_Item", "m_iItemDefinitionIndex")
+
+		if weapon_index and HEADSHOT_WEAPONS_INDEXES[weapon_index] then
+			return weapon:GetWeaponSpread() > 0 and Body or Head
+		end
+
+		return Body
+	end
 	return nil
 end
 
-local function GetAimPosition()
-	assert(m_localplayer, "GetAimPosition -> m_localplayer is nil!")
-	assert(m_weapon, "GetAimPosition -> m_weapon is nil!")
-	local class = m_localplayer:GetPropInt("m_PlayerClass", "m_iClass")
-	local item_def_idx = m_weapon:GetPropInt("m_Item", "m_iItemDefinitionIndex")
-
-	if class == TF2_Sniper then
-		if SpecialWeaponIndexes[item_def_idx] then
-			return m_hitbox_center
-		end
-		return m_localplayer:InCond(E_TFCOND.TFCond_Zoomed) and m_hitboxes.Head or m_hitboxes.Body
-	elseif class == TF2_Spy then
-		if SpecialWeaponIndexes[item_def_idx] then
-			return m_weapon:GetWeaponSpread() > 0 and m_hitboxes.Body or m_hitboxes.Head
-		end
-	end
-
-	return m_hitboxes.Body
+local function GetLastFireTime()
+	return weapon and weapon:GetPropFloat("LocalActiveTFWeaponData", "m_flLastFireTime") or 0
 end
 
----@param entity Entity
-function aimbot:IsVisible(entity)
-	assert(m_localplayer, "Aimbot -> IsVisible: m_localplayer is nil!")
-	assert(entity, "Aimbot -> IsVisible: entity is nil!")
-	assert(m_shootpos, "Aimbot -> IsVisible: m_shootpos is nil! Check Aimbot:SetLocalPlayer!")
-	if entity:IsDormant() or not entity:IsAlive() or entity:InCond(E_TFCOND.TFCond_Ubercharged) then
+local function GetNextPrimaryAttack()
+	return weapon and weapon:GetPropFloat("LocalActiveWeaponData", "m_flNextPrimaryAttack") or 0
+end
+
+--- https://www.unknowncheats.me/forum/team-fortress-2-a/273821-canshoot-function.html
+local function CanWeaponShoot()
+	if not weapon or weapon:GetPropInt("LocalWeaponData", "m_iClip1") == 0 then
 		return false
 	end
+	local lastfiretime = GetLastFireTime()
+	if lastFire ~= lastfiretime or weapon ~= old_weapon then
+		lastFire = lastfiretime
+		nextAttack = GetNextPrimaryAttack()
+	end
+	old_weapon = weapon
+	return nextAttack <= globals.CurTime()
+end
 
-	local center = GetHitboxPos(entity, GetAimPosition())
-	assert(center, "Aimbot -> IsVisible: center is nil! WTF")
-	local trace = engine.TraceLine(m_shootpos, center, MASK_SHOT_HULL)
+---@param bone Matrix3x4
+local function GetBoneOrigin(bone)
+	return Vector3(bone[1][4], bone[2][4], bone[3][4])
+end
 
-	if trace.entity == entity and trace.fraction < 0.99 then
-		m_target_pos = center
+---@param vec Vector3
+local function ToAngle(vec)
+	local hyp = sqrt((vec.x * vec.x) + (vec.y * vec.y))
+	return Vector3(atan(-vec.z, hyp) * RADPI, atan(vec.y, vec.x) * RADPI, 0)
+end
 
-		if m_debug then
-			local dbg_string = "Aimbot -> IsVisible: m_target_pos: [%s, %s, %s]"
-			warn(string.format(dbg_string, m_target_pos:Unpack()))
-		end
+---@param usercmd UserCmd
+---@param targetIndex integer
+local function MakeWeaponShoot(usercmd, targetIndex)
+	usercmd.buttons = usercmd.buttons | IN_ATTACK
+	GB_GLOBALS.m_nAimbotTarget = targetIndex
+	GB_GLOBALS.m_bIsAimbotShooting = true
+end
 
-		return true
-	else
-		--[[
-		local model = entity:GetModel()
-		local studioHdr = models.GetStudioModel(model)
+--- Only run this in CreateMove, after localplayer and weapon are valid!
+---@param usercmd UserCmd
+local function RunMelee(usercmd)
+	if weapon and weapon:IsMeleeWeapon() then
+		local swing_trace = weapon:DoSwingTrace()
 
-		local myHitBoxSet = entity:GetPropInt("m_nHitboxSet")
-		local hitboxSet = studioHdr:GetHitboxSet(myHitBoxSet)
-		local hitboxes = hitboxSet:GetHitboxes()
-		local boneMatrices = entity:SetupBones()]]
+		if swing_trace and swing_trace.entity and swing_trace.entity and swing_trace.fraction <= 0.98 then
+			local entity = swing_trace.entity
+			local entity_team = entity:GetTeamNumber()
+			local index = entity:GetIndex()
+			if
+				settings.aim_friendly_buildings
+				and BUILDINGS[entity:GetClass()]
+				and localplayer
+				and localplayer:GetPropInt("m_PlayerClass", "m_iClass") == ENGINEER_CLASS
+				and (
+					(entity:GetHealth() >= 1 and entity:GetHealth() < entity:GetMaxHealth())
+					or (entity:GetPropInt("m_iUpgradeLevel") < MAX_UPGRADE_LEVEL)
+				)
+			then
+				MakeWeaponShoot(usercmd, index)
+				return true
+			end
 
-		for _, hitbox in pairs(m_hitboxes) do
-			local pos = GetHitboxPos(entity, hitbox)
-			--local pos = GetHitboxPosCache(hitbox, hitboxes, boneMatrices)
-			if pos then
-				trace = engine.TraceLine(m_shootpos, pos, MASK_SHOT_HULL)
-				if trace.entity == entity and trace.fraction < 0.98 then
-					m_target_pos = pos
-
-					if m_debug then
-						local dbg_string = "Aimbot -> IsVisible: m_target_pos [%s, %s, %s]"
-						warn(string.format(dbg_string, m_target_pos:Unpack()))
+			if entity_team ~= m_team and entity:IsAlive() then
+				if weapon and weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_KNIFE and settings.autobackstab then
+					if m_bReadyToBackstab then
+						MakeWeaponShoot(usercmd, index)
 					end
 
+					--- dont run after this or it will try to butterknife
+					GB_GLOBALS.m_nAimbotTarget = index
+					GB_GLOBALS.m_bIsAimbotShooting = false
 					return true
 				end
+
+				MakeWeaponShoot(usercmd, index)
+				return true
 			end
 		end
 	end
 	return false
 end
 
----@param source Vector3
----@param dest Vector3
----@return EulerAngles
-function CalcAngle(source, dest)
-	local angles = Vector3()
-	local delta = (source - dest)
-	local fHyp = math.sqrt((delta.x * delta.x) + (delta.y * delta.y))
-
-	angles.x = (math.atan(delta.z / fHyp) * M_RADPI)
-	angles.y = (math.atan(delta.y / delta.x) * M_RADPI)
-	angles.z = 0.0
-
-	if delta.x >= 0.0 then
-		angles.y = angles.y + 180.0
-	end
-
-	return EulerAngles(angles:Unpack())
-end
-
----@param src EulerAngles
----@param dst EulerAngles
----@return number
-function CalcFov(src, dst)
-	local v_source = src:Forward()
-	local v_dest = dst:Forward()
-	local result = math.deg(math.acos(v_dest:Dot(v_source) / v_dest:LengthSqr()))
-
-	if result ~= result or result == math.huge then
-		result = 0.0
-	end
-
-	return result
-end
-
-local function FilterBuildings(class)
-	if not m_closest_fov or type(m_closest_fov) ~= "number" then
-		m_closest_fov = math.huge
-	end
-	if not m_shootpos or not m_viewangles or not m_localplayer then
-		return
-	end
-
-	for _, building in pairs(class) do
-		if building:GetHealth() <= 0 or building:IsDormant() then
-			goto skipbuilding
-		end
-		local mins, maxs = building:GetMins(), building:GetMaxs()
-		local center = building:GetAbsOrigin() + ((mins + maxs) * 0.5)
-		local trace = engine.TraceLine(m_shootpos, center, MASK_SHOT_HULL)
-
-		if trace.entity == building and trace.fraction < 0.99 then
-			local angle = CalcAngle(m_shootpos, center)
-			if not angle then
-				goto skipbuilding
-			end
-
-			local fov = CalcFov(m_viewangles, angle)
-			if not fov then
-				goto skipbuilding
-			end
-
-			if fov > m_closest_fov or fov > m_settings.fov then
-				goto skipbuilding
-			end
-
-			m_closest_fov = fov
-			m_target_pos = center
-			m_target = building
-		end
-		::skipbuilding::
-	end
-end
-
-local function GetOtherBuildings()
-	if not m_closest_fov or type(m_closest_fov) ~= "number" then
-		m_closest_fov = math.huge
-	end
-	if not m_shootpos or not m_viewangles or not m_localplayer then
-		return
-	end
-
-	if m_settings.aim.sentries and Sentries then
-		FilterBuildings(Sentries)
-	end
-
-	if m_settings.aim.other_buildings then
-		if Dispensers then
-			FilterBuildings(Dispensers)
-		end
-
-		if Teleporters then
-			FilterBuildings(Teleporters)
-		end
-	end
-end
-
---- Returns the valid entities from the parameters
-function aimbot:GetTargetAngle()
-	assert(m_localplayer, "Aimbot -> GetTarget: m_localplayer is nil!")
-	assert(m_viewangles, "Aimbot -> GetTarget: m_viewangles is nil! Check Aimbot:SetLocalPlayer!")
-	assert(m_localplayer_pos, "Aimbot -> GetTarget: m_localplayer_pos is nil! Check Aimbot.Run!")
-	assert(m_weapon, "Aimbot -> GetTarget: m_weapon is nil! Check Aimbot.SetLocalPlayer!")
-	assert(m_shootpos, "Aimbot -> GetTarget: m_shootpos is nil! Check Aimbot.SetLocalPlayer!")
-	m_closest_fov = math.huge
-	m_target_pos = nil
-	m_target = nil
-	m_target_angle = nil
-
-	GetOtherBuildings()
-
-	if m_settings.aim.players and Players then
-		for _, player in pairs(Players) do
-			if self:IsVisible(player) then
-				assert(m_target_pos, "Aimbot -> GetTarget: m_target_pos is nil! Check Aimbot:SetLocalPlayer!")
-
-				if m_settings.ignore.cloaked and player:InCond(E_TFCOND.TFCond_Cloaked) then
-					goto continue
-				end
-				if m_settings.ignore.bonked and player:InCond(E_TFCOND.TFCond_Bonked) then
-					goto continue
-				end
-				if m_settings.ignore.deadringer and player:InCond(E_TFCOND.TFCond_DeadRingered) then
-					goto continue
-				end
-				if m_settings.ignore.disguised and player:InCond(E_TFCOND.TFCond_Disguised) then
-					goto continue
-				end
-				if m_settings.ignore.friends and playerlist.GetPriority(player) == -1 then
-					goto continue
-				end
-				if m_settings.ignore.taunting and player:InCond(E_TFCOND.TFCond_Taunting) then
-					goto continue
-				end
-
-				local angle = CalcAngle(m_shootpos, m_target_pos)
-				if not angle then
-					goto continue
-				end
-
-				local fov = CalcFov(m_viewangles, angle)
-				if not fov then
-					goto continue
-				end
-				if fov > m_closest_fov or fov > m_settings.fov then
-					goto continue
-				end
-
-				m_closest_fov = fov
-				m_target = player
-				m_target_angle = angle
-			end
-			::continue::
-		end
-	end
-end
-
 ---@param usercmd UserCmd
-local function AimAtTarget(usercmd)
-	if m_target_angle then
-		if GB_GLOBALS.m_bNoRecoil then
-			local punchangle = (m_weapon and m_weapon:GetPropVector("m_vecPunchAngle") or Vector3())
-			m_target_angle = EulerAngles((m_target_angle - punchangle):Unpack())
-		end
-
-		if m_settings.mode == aimbot_mode.plain then
-			engine.SetViewAngles(m_target_angle)
-			usercmd.viewangles = Vector3(m_target_angle:Unpack())
-		elseif m_settings.mode == aimbot_mode.smooth then
-			local old_angle = engine:GetViewAngles()
-			local new_angle = m_target_angle - Vector3(old_angle:Unpack())
-			local delta = new_angle / m_settings.smooth_value
-			local new_smooth_angle = old_angle + Vector3(delta:Unpack())
-			local smooth_angle = EulerAngles(new_smooth_angle:Unpack())
-			engine.SetViewAngles(smooth_angle)
-			usercmd.viewangles = Vector3(smooth_angle:Unpack())
-		elseif m_settings.mode == aimbot_mode.silent then
-			usercmd:SetViewAngles(m_target_angle:Unpack())
-		end
-	end
-end
-
-local function GetLastFireTime()
-	return m_weapon and m_weapon:GetPropFloat("LocalActiveTFWeaponData", "m_flLastFireTime") or 0
-end
-
-local function GetNextPrimaryAttack()
-	return m_weapon and m_weapon:GetPropFloat("LocalActiveWeaponData", "m_flNextPrimaryAttack") or 0
-end
-
---- https://www.unknowncheats.me/forum/team-fortress-2-a/273821-canshoot-function.html
-local function CanWeaponShoot()
-	if
-		not m_weapon
-		or not m_localplayer
-		or not m_localplayer:IsAlive()
-		or m_weapon:GetPropInt("LocalWeaponData", "m_iClip1") == 0
-	then
-		return false
-	end
-	local lastfiretime = GetLastFireTime()
-	if lastFire ~= lastfiretime or m_weapon ~= old_weapon then
-		lastFire = lastfiretime
-		nextAttack = GetNextPrimaryAttack()
-	end
-	old_weapon = m_weapon
-	return nextAttack <= globals.CurTime()
-end
-
-local function CanWeaponShootSimple()
-	if GB_GLOBALS.m_hLocalPlayer then
-		return GB_GLOBALS.m_hLocalPlayer:GetPropFloat("m_flNextAttack") <= globals.CurTime()
-	end
-	return true
-end
-
----@param usercmd UserCmd
-function aimbot.RunHitscan(usercmd)
-	if
-		not input.IsButtonDown(m_settings.key)
-		or engine.IsChatOpen()
-		or engine.IsGameUIVisible()
-		or engine.Con_IsVisible()
-		or not m_settings.bullet
-	then
-		GB_GLOBALS.m_bIsAimbotShooting = false
-		GB_GLOBALS.m_nAimbotTarget = nil
-		return
-	end
-
-	assert(m_weapon, "Aimbot -> RunMelee: m_weapon is nil! Check aimbot:SetLocalPlayer!")
-	assert(m_localplayer_pos, "Aimbot -> RunHitscan: m_localplayer_pos is nil! Check aimbot:SetLocalPlayer!")
-	assert(Players, "Aimbot -> RunHitscan: (global) Players is nil! Check background.lua -> Background()")
-	assert(Sentries, "Aimbot -> RunHitscan: (global) Sentries is nil! Check background.lua -> Background()")
-	assert(Dispensers, "Aimbot -> RunHitscan: (global) Dispensers is nil! Check background.lua -> Background()")
-	assert(Teleporters, "Aimbot -> RunHitscan: (global) Teleporters is nil! Check background.lua -> Background()")
-	aimbot:GetTargetAngle()
-
-	if
-		m_settings.autoshoot
-		and m_target
-		and m_target_angle
-		and m_target_pos
-		and (m_settings.lock_aim and CanWeaponShootSimple() or CanWeaponShoot())
-	then
-		usercmd.buttons = usercmd.buttons | IN_ATTACK
-	end
-
-	if usercmd.buttons & IN_ATTACK ~= 0 then
-		AimAtTarget(usercmd)
-		m_viewangles = usercmd.viewangles
-
-		GB_GLOBALS.m_bIsAimbotShooting = true
-		GB_GLOBALS.m_nAimbotTarget = m_target
-	end
-end
-
-function aimbot:GetCurrentTarget()
-	return m_target, m_target_angle
-end
-
-local function NormalizeVector(vec)
-	return Vector3(vec.x / vec:Length(), vec.y / vec:Length(), vec.z / vec:Length())
-end
-
---- unreliable, for some fucking reason it depends on the position of the target
-local function LookingAtBack()
-	assert(m_localplayer, "LookingAtBack -> m_localplayer is nil!")
-	assert(m_target, "LookingAtBack -> m_target is nil!")
-	assert(m_shootpos, "LookingAtBack -> m_shootpos is nil!")
-
-	local vecToTarget = m_target:GetAbsOrigin() - m_localplayer:GetAbsOrigin()
-	vecToTarget.z = 0
-	vecToTarget = NormalizeVector(vecToTarget)
-
-	local forward = m_shootpos + engine:GetViewAngles():Forward()
-	forward.z = 0
-	forward = NormalizeVector(forward)
-
-	local targetForward = m_target:GetAbsAngles():Forward()
-	targetForward.z = 0
-	targetForward = NormalizeVector(targetForward)
-
-	local pos_vs_target = vecToTarget:Dot(targetForward) --- behind
-	local pos_vs_owner = vecToTarget:Dot(forward) --- facing
-	local viewangles = targetForward:Dot(forward) --- facestab
-
-	local behind = pos_vs_target <= 0
-	local facing = pos_vs_owner <= 0.5
-	local view = viewangles <= -0.3
-
-	if m_debug then
-		local str = "behind: %s : %s, facing: %s : %s, viewangles: %s : %s"
-		print(string.format(str, tostring(pos_vs_target), behind, tostring(pos_vs_owner), facing, viewangles, view))
-	end
-	return behind and facing
-end
-
-local function ShootWeapon(usercmd, target)
-	GB_GLOBALS.m_bIsAimbotShooting = true
-	GB_GLOBALS.m_nAimbotTarget = target
-	usercmd.buttons = usercmd.buttons | IN_ATTACK
-end
-
----@param usercmd UserCmd
-function aimbot.RunMelee(usercmd)
-	if
-		not input.IsButtonDown(m_settings.key)
-		or engine.IsChatOpen()
-		or engine.IsGameUIVisible()
-		or engine.Con_IsVisible()
-		or not m_settings.melee
-		or not CanWeaponShootSimple()
-	then
-		GB_GLOBALS.m_bIsAimbotShooting = false
-		GB_GLOBALS.m_nAimbotTarget = nil
-		return
-	end
-
-	if GB_GLOBALS.m_hLocalPlayer and GB_GLOBALS.m_hActiveWeapon then
-		local swing_trace = GB_GLOBALS.m_hActiveWeapon:DoSwingTrace()
-
-		if swing_trace and swing_trace.entity then
-			if
-				m_settings.aim_friendly_buildings
-				and swing_trace.entity:GetTeamNumber() == GB_GLOBALS.m_hLocalPlayer:GetTeamNumber()
-				and GB_GLOBALS.m_hLocalPlayer:GetPropInt("m_PlayerClass", "m_iClass") == 9
-				and BUILDINGS[swing_trace.entity:GetClass()]
-				and (
-					(
-						swing_trace.entity:GetHealth() >= 1
-						and swing_trace.entity:GetHealth() < swing_trace.entity:GetMaxHealth()
-					) or (swing_trace.entity:GetPropInt("m_iUpgradeLevel") < 3)
-				)
-			then
-				ShootWeapon(usercmd, swing_trace.entity)
-				return
-			end
-
-			if
-				swing_trace.fraction < 0.99
-				and swing_trace.entity:GetTeamNumber() ~= GB_GLOBALS.m_hLocalPlayer:GetTeamNumber()
-			then
-				if
-					m_settings.autobackstab
-					and GB_GLOBALS.m_hActiveWeapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_KNIFE
-				then
-					if m_bReadyToBackstab then
-						ShootWeapon(usercmd, swing_trace.entity)
-					end
-					return
-				end
-
-				ShootWeapon(usercmd, swing_trace.entity)
-			end
-		end
-	end
-end
-
-function aimbot.CreateMove(usercmd)
-	m_viewangles = usercmd.viewangles
-	aimbot:SetLocalPlayer()
-	if not m_localplayer then
-		return
-	end
-	assert(m_weapon, "aimbot -> CreateMove: m_weapon is nil!")
-
+local function CreateMove(usercmd)
 	GB_GLOBALS.m_bIsAimbotShooting = false
-	if m_weapon:GetWeaponProjectileType() == E_ProjectileType.TF_PROJECTILE_BULLET then
-		aimbot.RunHitscan(usercmd)
-	elseif m_weapon:IsMeleeWeapon() then
-		aimbot.RunMelee(usercmd)
+	GB_GLOBALS.m_nAimbotTarget = nil
+
+	if not input.IsButtonDown(settings.key) then
+		return
+	end
+
+	if engine.IsChatOpen() or engine.Con_IsVisible() or engine.IsGameUIVisible() then
+		return
+	end
+
+	localplayer = entities:GetLocalPlayer()
+	if not localplayer or not localplayer:IsAlive() then
+		return
+	end
+
+	weapon = localplayer:GetPropEntity("m_hActiveWeapon")
+	if not weapon then
+		return
+	end
+
+	m_team = localplayer:GetTeamNumber()
+
+	--- if it returns true, it means it was a melee weapon and it did the proper math for them
+	if weapon:IsMeleeWeapon() then
+		RunMelee(usercmd)
+		return
+	end
+
+	local shoot_pos = GetShootPosition()
+	if not shoot_pos then
+		return
+	end
+
+	local punchangles = weapon:GetPropVector("m_vecPunchAngle") or Vector3()
+
+	local should_aim_at_head = ShouldAimAtHead()
+
+	--- trust me, i tried like 3 or 4 different math combinations
+	--- and i decided to just give up and paste amalgam for the fov xd
+
+	local best_angle, best_fov, target, looking_at_target = nil, settings.fov, nil, false
+
+	for _, entity in pairs(Players) do
+		if not entity or entity:IsDormant() or not entity:IsAlive() or entity:GetTeamNumber() == m_team then
+			goto continue
+		end
+
+		if entity:InCond(E_TFCOND.TFCond_Ubercharged) then
+			goto continue
+		elseif entity:InCond(E_TFCOND.TFCond_Cloaked) and settings.ignore.cloaked then
+			goto continue
+		end
+
+		--[[
+   local mins, maxs = entity:GetMins(), entity:GetMaxs()
+   local center = entity:GetAbsOrigin() + ((mins + maxs) * ]]
+
+		local enemy_class = entity:GetPropInt("m_PlayerClass", "m_iClass")
+		local best_bone_for_weapon = nil
+
+		if should_aim_at_head == nil then
+			goto continue
+		elseif should_aim_at_head == true then
+			best_bone_for_weapon = CLASS_HITBOXES[enemy_class][1]
+		elseif should_aim_at_head == false then
+			best_bone_for_weapon = #CLASS_HITBOXES[enemy_class] == 6 and CLASS_HITBOXES[enemy_class][2]
+				or CLASS_HITBOXES[enemy_class][3] --- if size is 6 then we have no HeadUpper as the first value
+		end
+
+		local bones = entity:SetupBones()
+		if not bones then
+			goto continue
+		end
+
+		local bone_position = GetBoneOrigin(bones[best_bone_for_weapon])
+		if not bone_position then
+			goto continue
+		end
+
+		local trace = TraceLine(shoot_pos, bone_position, MASK_SHOT_HULL)
+		if not trace then
+			goto continue
+		end
+
+		local looking_at_trace =
+			TraceLine(shoot_pos, shoot_pos + engine:GetViewAngles():Forward() * 1000, MASK_SHOT_HULL)
+		if not looking_at_trace then
+			goto continue
+		end
+
+		local function do_aimbot_calc()
+			local angle = ToAngle(bone_position - shoot_pos) - (usercmd.viewangles - punchangles)
+			local fov = sqrt((angle.x ^ 2) + (angle.y ^ 2))
+
+			if fov < best_fov then
+				best_fov = fov
+				best_angle = angle
+				target = entity:GetIndex() --- not saving the whole entity here, too much memory used!
+				return true
+			end
+			return false
+		end
+
+		if trace and trace.entity == entity and trace.fraction < 0.99 then
+			--- for smooth aimbot, ensure we are aiming somewhat close to the target so we can shoot
+			if looking_at_trace and looking_at_trace.entity and looking_at_trace.entity == entity then
+				looking_at_target = true
+			end
+
+			do_aimbot_calc()
+		else
+			local BONES = CLASS_HITBOXES[enemy_class]
+			for _, bone in ipairs(BONES) do
+				--- already tried the best one
+				if bone ~= best_bone_for_weapon then
+					bone_position = GetBoneOrigin(bones[bone])
+					if not bone_position then
+						goto skip_bone
+					end
+
+					trace = TraceLine(shoot_pos, bone_position, MASK_SHOT_HULL)
+					if not trace then
+						goto skip_bone
+					end
+
+					if trace.entity == entity and trace.fraction < 0.99 then
+						if
+							not looking_at_target
+							and looking_at_trace
+							and looking_at_trace.entity
+							and looking_at_trace.entity == entity
+						then
+							looking_at_target = true
+						end
+
+						do_aimbot_calc()
+					end
+				end
+				::skip_bone::
+			end
+		end
+		::continue::
+	end
+
+	for _, entity in pairs(Dispensers) do
+		local mins, maxs = entity:GetMins(), entity:GetMaxs()
+		local center = entity:GetAbsOrigin() + ((mins + maxs) * 0.5)
+
+		local trace = TraceLine(shoot_pos, center, MASK_SHOT_HULL)
+		if trace and trace.entity == entity and trace.fraction < 0.99 then
+			local angle = ToAngle(center - shoot_pos) - (usercmd.viewangles - punchangles)
+			local fov = sqrt((angle.x ^ 2) + (angle.y ^ 2))
+
+			if fov < best_fov then
+				best_fov = fov
+				best_angle = angle
+				target = entity:GetIndex() --- not saving the whole entity here, too much memory used!
+			end
+		end
+	end
+
+	for _, entity in pairs(Teleporters) do
+		local mins, maxs = entity:GetMins(), entity:GetMaxs()
+		local center = entity:GetAbsOrigin() + ((mins + maxs) * 0.5)
+
+		local trace = TraceLine(shoot_pos, center, MASK_SHOT_HULL)
+		if trace and trace.entity == entity and trace.fraction < 0.99 then
+			local angle = ToAngle(center - shoot_pos) - (usercmd.viewangles - punchangles)
+			local fov = sqrt((angle.x ^ 2) + (angle.y ^ 2))
+
+			if fov < best_fov then
+				best_fov = fov
+				best_angle = angle
+				target = entity:GetIndex() --- not saving the whole entity here, too much memory used!
+			end
+		end
+	end
+
+	for _, entity in pairs(Sentries) do
+		local mins, maxs = entity:GetMins(), entity:GetMaxs()
+		local center = entity:GetAbsOrigin() + ((mins + maxs) * 0.5)
+
+		local trace = TraceLine(shoot_pos, center, MASK_SHOT_HULL)
+		if trace and trace.entity == entity and trace.fraction < 0.99 then
+			local angle = ToAngle(center - shoot_pos) - (usercmd.viewangles - punchangles)
+			local fov = sqrt((angle.x ^ 2) + (angle.y ^ 2))
+
+			if fov < best_fov then
+				best_fov = fov
+				best_angle = angle
+				target = entity:GetIndex() --- not saving the whole entity here, too much memory used!
+			end
+		end
+	end
+
+	local can_shoot = CanWeaponShoot() -- if autoshoot is off and player is trying to shoot, we aim for them
+
+	if best_angle then
+		if can_shoot then
+			usercmd.viewangles = usercmd.viewangles
+				+ (
+					settings.mode == aimbot_mode.smooth
+						and vecMultiply(best_angle, (settings.smooth_value * 0.01 --[[/100]]))
+					or best_angle
+				)
+		end
+
+		if settings.mode == aimbot_mode.plain and can_shoot then
+			engine.SetViewAngles(EulerAngles(best_angle:Unpack()))
+		elseif settings.mode == aimbot_mode.smooth then
+			local smoothed = engine:GetViewAngles() + vecMultiply(best_angle, (settings.smooth_value * 0.01 --[[/100]]))
+			engine.SetViewAngles(EulerAngles(smoothed:Unpack()))
+			usercmd.viewangles = smoothed
+		end
+
+		if can_shoot then
+			if settings.mode ~= aimbot_mode.smooth then
+				usercmd.buttons = usercmd.buttons | IN_ATTACK
+			else
+				if looking_at_target then
+					usercmd.buttons = usercmd.buttons | IN_ATTACK
+				end
+			end
+			GB_GLOBALS.m_bIsAimbotShooting = true
+			GB_GLOBALS.m_nAimbotTarget = target
+		end
 	end
 end
 
----E_ClientFrameStage.FRAME_NET_UPDATE_END
-function aimbot.FrameStage(stage)
-	if
-		stage == E_ClientFrameStage.FRAME_NET_UPDATE_END
-		and m_weapon
-		and m_weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_KNIFE
-	then
-		m_bReadyToBackstab = m_weapon:GetPropBool("m_bReadyToBackstab") or false
+---@param stage E_ClientFrameStage
+local function FrameStageNotify(stage)
+	if stage == E_ClientFrameStage.FRAME_NET_UPDATE_END and localplayer and weapon then
+		m_bReadyToBackstab = weapon:GetPropBool("m_bReadyToBackstab") or false
 	end
 end
+
+local function Draw()
+	--radius = std::tan( math::to_rad( fov * 0.5f ) * 2.f ) / g_draw.get_screen_fov( ) * ( g_draw.width( ) * 0.5f );
+	--local radius = math.tan(math.rad(settings.fov))
+	--/ math.tan(
+	--math.rad(GB_GLOBALS.m_flCustomFOV)--[[(GB_GLOBALS.m_nAspectRatio == 0 and GB_GLOBALS.m_nPreAspectRatio or GB_GLOBALS.m_nAspectRatio)]]
+	--* (width * 0.5)
+	--)
+
+	--[[
+	local radius = (math.tan(math.rad(settings.fov / 2)) / math.tan(math.rad(GB_GLOBALS.m_flCustomFOV / 2)))
+		* (width * 0.5)]]
+
+	--[[
+	local radius = (
+		math.tan(math.rad(settings.fov / RADPI)) / math.tan((math.rad(GB_GLOBALS.m_flCustomFOV) / 2) / RADPI)
+	) * (width * 0.5)
+	--* (GB_GLOBALS.m_nAspectRatio == 0 and GB_GLOBALS.m_nPreAspectRatio or GB_GLOBALS.m_nAspectRatio)]]
+
+	if localplayer and localplayer:IsAlive() then
+		local aspect_ratio = (
+			GB_GLOBALS.m_nAspectRatio == 0 and GB_GLOBALS.m_nPreAspectRatio or GB_GLOBALS.m_nAspectRatio
+		)
+		local fov = localplayer:InCond(E_TFCOND.TFCond_Zoomed) and 20 or GB_GLOBALS.m_flCustomFOV
+		-- i just gave up and pasted amalgam's draw fov
+		local radius = math.tan(math.rad(settings.fov)) / math.tan(math.rad(fov) / 2) * width * (4 / 6) / aspect_ratio
+
+		--[[
+  1.33 -- radius
+  1.78 -- y
+  1.33y = radius*1.78
+  y = (radius*aspect_ratio)/1.33
+  --]]
+
+		draw.Color(255, 255, 255, 255)
+		draw.OutlinedCircle(
+			math.floor(width * 0.5),
+			math.floor(height * 0.5),
+			math.floor((radius * aspect_ratio) / 1.33),
+			64
+		)
+	end
+end
+
+local aimbot = {}
+aimbot.CreateMove = CreateMove
+aimbot.FrameStageNotify = FrameStageNotify
+aimbot.Draw = Draw
 
 return aimbot

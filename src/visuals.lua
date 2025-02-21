@@ -2,6 +2,13 @@ local visuals = {}
 
 ---@param setup ViewSetup
 local function CustomFOV(setup)
+	if not GB_GLOBALS then
+		return
+	end
+
+	GB_GLOBALS.m_nPreAspectRatio = setup.aspectRatio
+	setup.aspectRatio = GB_GLOBALS.m_nAspectRatio == 0 and setup.aspectRatio or GB_GLOBALS.m_nAspectRatio
+
 	if GB_GLOBALS.m_hLocalPlayer then
 		local fov = GB_GLOBALS.m_hLocalPlayer:InCond(E_TFCOND.TFCond_Zoomed) and 20 or GB_GLOBALS.m_flCustomFOV
 		setup.fov = fov
@@ -16,5 +23,3 @@ end
 visuals.CustomFOV = CustomFOV
 
 return visuals
-
---callbacks.Register("RenderView", "RV galic bread custom fov", CustomFOV)

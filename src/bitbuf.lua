@@ -1,5 +1,3 @@
---- untested library as LMAOBOX is not updated!
-
 local NEW_COMMANDS_SIZE = 4
 local BACKUP_COMMANDS_SIZE = 3
 local MSG_SIZE = 6
