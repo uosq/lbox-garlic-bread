@@ -1,12 +1,12 @@
 local aimbot_mode = { plain = 1, smooth = 2, silent = 3 }
 
 local settings = {
-	fov = 30,
+	fov = 10,
 	key = E_ButtonCode.KEY_LSHIFT,
 	autoshoot = true,
 	mode = aimbot_mode.silent,
 	lock_aim = false,
-	smooth_value = 35, --- lower value, smoother aimbot (10 = very smooth, 100 = basically plain aimbot)
+	smooth_value = 10, --- lower value, smoother aimbot (10 = very smooth, 100 = basically plain aimbot)
 	melee_rage = false,
 
 	--- should aimbot run when using one of them?

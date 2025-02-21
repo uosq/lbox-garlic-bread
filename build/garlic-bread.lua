@@ -223,9 +223,17 @@ local function CustomFOV(setup)
 	GB_GLOBALS.m_nPreAspectRatio = setup.aspectRatio
 	setup.aspectRatio = GB_GLOBALS.m_nAspectRatio == 0 and setup.aspectRatio or GB_GLOBALS.m_nAspectRatio
 
+	--[[
+  90 fov = 106.26020812988
+  120 = x
+  106.26020812988*120 = 90x
+  (120.26020812988*120)/90 = x fov
+  --]]
+
 	if GB_GLOBALS.m_hLocalPlayer then
 		local fov = GB_GLOBALS.m_hLocalPlayer:InCond(E_TFCOND.TFCond_Zoomed) and 20 or GB_GLOBALS.m_flCustomFOV
-		setup.fov = fov
+		local render_fov = (106.26020812988 * fov) / 90
+		setup.fov = render_fov
 
 		if GB_GLOBALS.m_bNoRecoil and GB_GLOBALS.m_hLocalPlayer:GetPropInt("m_nForceTauntCam") == 0 then
 			local punchangle = GB_GLOBALS.m_hLocalPlayer:GetPropVector("m_vecPunchAngle")
@@ -552,12 +560,12 @@ __bundle_register("src.aimbot", function(require, _LOADED, __bundle_register, __
 local aimbot_mode = { plain = 1, smooth = 2, silent = 3 }
 
 local settings = {
-	fov = 30,
+	fov = 10,
 	key = E_ButtonCode.KEY_LSHIFT,
 	autoshoot = true,
 	mode = aimbot_mode.silent,
 	lock_aim = false,
-	smooth_value = 35, --- lower value, smoother aimbot (10 = very smooth, 100 = basically plain aimbot)
+	smooth_value = 10, --- lower value, smoother aimbot (10 = very smooth, 100 = basically plain aimbot)
 	melee_rage = false,
 
 	--- should aimbot run when using one of them?
