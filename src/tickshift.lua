@@ -9,35 +9,15 @@ local max_ticks = 0
 local last_key_tick = 0
 local next_passive_tick = 0
 
+local m_enabled = true
 local shooting = false
+local warping, recharging = false, false
 
 local font = draw.CreateFont("TF2 BUILD", 16, 1000)
 
 ---@type number, boolean
 local m_localplayer_speed, m_bIsRED
 m_bIsRED = false
-
-local function clc_Move()
-	local moveMsg = { m_nNewCommands = 2, m_nBackupCommands = 1, buffer = BitBuffer() }
-
-	setmetatable(moveMsg, {
-		__close = function(this)
-			this.m_nBackupCommands = nil
-			this.m_nNewCommands = nil
-			this.buffer:Delete()
-			this.buffer = nil
-		end,
-	})
-
-	function moveMsg:init()
-		self.buffer:Reset()
-		self.buffer:WriteInt(self.m_nNewCommands, NEW_COMMANDS_SIZE)
-		self.buffer:WriteInt(self.m_nBackupCommands, BACKUP_COMMANDS_SIZE)
-		self.buffer:Reset()
-	end
-
-	return moveMsg
-end
 
 local m_settings = {
 	warp = {
@@ -81,7 +61,8 @@ end
 
 ---@param msg NetMessage
 function HandleWarp(msg)
-	if GB_GLOBALS.m_hLocalPlayer and m_localplayer_speed <= 0 and not m_settings.warp.standing_still then
+	local player = entities:GetLocalPlayer()
+	if player and m_localplayer_speed <= 0 and not m_settings.warp.standing_still then
 		return
 	end
 
@@ -93,7 +74,7 @@ function HandleWarp(msg)
 		return
 	end
 
-	if GB_GLOBALS.m_hLocalPlayer and GB_GLOBALS.m_hLocalPlayer:IsAlive() and charged_ticks > 0 and CanShift() then
+	if player and player:IsAlive() and charged_ticks > 0 and CanShift() then
 		--local moveMsg = clc_Move()
 
 		--- the new BitBuffer lib
@@ -110,14 +91,16 @@ function HandleWarp(msg)
 end
 
 local function HandlePassiveRecharge()
-	assert(GB_GLOBALS.m_hLocalPlayer, "HandlePassiveRecharge: m_localplayer is nil!")
 	if not m_settings.warp.passive.enabled or charged_ticks >= max_ticks then
 		return false
 	end
 
+	local player = entities:GetLocalPlayer()
+	if (not player) then return false end
+
 	if
 		(globals.TickCount() >= next_passive_tick)
-		or (m_settings.warp.passive.while_dead and not GB_GLOBALS.m_hLocalPlayer:IsAlive())
+		or (m_settings.warp.passive.while_dead and not player:IsAlive())
 	then
 		charged_ticks = charged_ticks + 1
 		local time = engine.RandomFloat(m_settings.warp.passive.min_time, m_settings.warp.passive.max_time)
@@ -136,7 +119,7 @@ local function HandleRecharge()
 		return false
 	end
 
-	if CanChoke() and charged_ticks < max_ticks and GB_GLOBALS.m_bRecharging then
+	if CanChoke() and charged_ticks < max_ticks and recharging then
 		charged_ticks = charged_ticks + 1
 		return true
 	end
@@ -166,6 +149,12 @@ end
 ---@param reliable boolean
 ---@param isvoice boolean
 function tickshift.SendNetMsg(msg, reliable, isvoice)
+	GB_GLOBALS.m_bWarping = false
+	GB_GLOBALS.m_bRecharging = false
+
+	--- return early if user disabled with console commands
+	if (not m_enabled) then return true end
+
 	if msg:GetType() == SIGNONSTATE_TYPE then
 		HandleJoinServers(msg)
 	end
@@ -179,9 +168,11 @@ function tickshift.SendNetMsg(msg, reliable, isvoice)
 	end
 
 	if msg:GetType() == CLC_MOVE_TYPE then
-		if GB_GLOBALS.m_bWarping and not GB_GLOBALS.m_bRecharging then
+		if warping and not recharging then
+			GB_GLOBALS.m_bWarping = true
 			HandleWarp(msg)
 		elseif HandleRecharge() then
+			GB_GLOBALS.m_bRecharging = true
 			return false
 		end
 	end
@@ -195,19 +186,23 @@ end
 
 ---@param usercmd UserCmd
 function tickshift.CreateMove(usercmd)
-	if engine.IsChatOpen() or engine.IsGameUIVisible() or engine.Con_IsVisible() or not GB_GLOBALS.m_hLocalPlayer then
+	if engine.IsChatOpen() or engine.IsGameUIVisible() or engine.Con_IsVisible()
+		or GB_GLOBALS.m_bIsStacRunning or (not m_enabled) then
 		return
 	end
 
-	m_localplayer_speed = GB_GLOBALS.m_hLocalPlayer and GB_GLOBALS.m_hLocalPlayer:EstimateAbsVelocity():Length() or 0
-	m_bIsRED = GB_GLOBALS.m_hLocalPlayer:GetTeamNumber() == 2
+	local player = entities:GetLocalPlayer()
+	if (not player) then return end
+
+	m_localplayer_speed = player:EstimateAbsVelocity():Length() or 0
+	m_bIsRED = player:GetTeamNumber() == 2
 	max_ticks = GetMaxServerTicks()
 	charged_ticks = clamp(charged_ticks, 0, max_ticks)
 
-	GB_GLOBALS.m_bWarping = input.IsButtonDown(m_settings.warp.send_key)
-	GB_GLOBALS.m_bRecharging = input.IsButtonDown(m_settings.warp.recharge_key)
-
-	shooting = (usercmd.buttons & IN_ATTACK) ~= 0 or GB_GLOBALS.m_bIsAimbotShooting
+	shooting = ((usercmd.buttons & IN_ATTACK) ~= 0 or GB_GLOBALS.m_bIsAimbotShooting) and GB_GLOBALS.CanWeaponShoot()
+	warping = input.IsButtonDown(m_settings.warp.send_key)
+	GB_GLOBALS.m_bWarping = warping
+	recharging = input.IsButtonDown(m_settings.warp.recharge_key)
 
 	local state, tick = input.IsButtonPressed(m_settings.warp.passive.toggle_key)
 	if state and last_key_tick < tick then
@@ -222,6 +217,7 @@ function tickshift.Draw()
 		engine:Con_IsVisible()
 		or engine:IsGameUIVisible()
 		or (engine:IsTakingScreenshot() and gui.GetValue("clean screenshots") == 1)
+		or (not m_enabled)
 	then
 		return
 	end
@@ -263,4 +259,10 @@ function tickshift.Draw()
 	draw.TextShadow(textX, textY, formatted_text)
 end
 
+local function cmd_ToggleTickShift()
+	m_enabled = not m_enabled
+	print(150, 255, 150, 255, "Tick shifting is now " .. (m_enabled and "enabled" or "disabled"))
+end
+
+GB_GLOBALS.RegisterCommand("tickshift->toggle", "Toggles tickshifting (warp, recharge)", 0, cmd_ToggleTickShift)
 return tickshift

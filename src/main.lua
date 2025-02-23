@@ -1,6 +1,7 @@
 require("src.globals")
 require("src.bitbuf")
 require("src.anticheat")
+require("src.commands")
 
 local aimbot = require("src.aimbot")
 local tickshift = require("src.tickshift")
@@ -9,7 +10,6 @@ local visuals = require("src.visuals")
 local movement = require("src.movement")
 
 require("src.background")
-require("src.commands")
 
 --aimbot:SetDebug(false)
 

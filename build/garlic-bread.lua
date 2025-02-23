@@ -46,6 +46,7 @@ __bundle_register("__root", function(require, _LOADED, __bundle_register, __bund
 require("src.globals")
 require("src.bitbuf")
 require("src.anticheat")
+require("src.commands")
 
 local aimbot = require("src.aimbot")
 local tickshift = require("src.tickshift")
@@ -54,7 +55,6 @@ local visuals = require("src.visuals")
 local movement = require("src.movement")
 
 require("src.background")
-require("src.commands")
 
 --aimbot:SetDebug(false)
 
@@ -88,85 +88,6 @@ callbacks.Register("Unload", "UL garlic bread unload", function()
 end)
 
 end)
-__bundle_register("src.commands", function(require, _LOADED, __bundle_register, __bundle_modules)
-local setvar = "setvar"
-local getvars = "getvars"
-
----@param cmd StringCmd
-local function SendStringCmd(cmd)
-	if not GB_GLOBALS then
-		return
-	end
-	local sent_command = cmd:Get()
-	if sent_command:find(setvar) then
-		local words = {}
-		for word in string.gmatch(sent_command, "%S+") do
-			words[#words + 1] = word
-		end
-
-		table.remove(words, 1)
-		local var = table.remove(words, 1)
-
-		if GB_GLOBALS[var] == nil then
-			cmd:Set("echo Couldnt find var!")
-			return
-		elseif type(GB_GLOBALS[var]) == "function" then
-			GB_GLOBALS[var]()
-			cmd:Set("")
-			return
-		end
-
-		local value = table.remove(words, 1)
-
-		if value == "true" then
-			value = true
-		elseif value == "false" then
-			value = false
-		elseif string.find(var, "ang") or string.find(var, "vec") then --- assume its a EulerAngles or Vector3
-			local mode = string.find(var, "ang") and "euler" or "vec"
-			local x, y, z = table.remove(words, 1), table.remove(words, 1), table.remove(words, 1)
-			x, y, z = tonumber(x), tonumber(y), tonumber(z)
-			if mode == "vector" then
-				value = Vector3(x, y, z)
-			elseif mode == "euler" then
-				value = EulerAngles(x, y, z)
-			end
-		else
-			value = tonumber(value)
-		end
-
-		GB_GLOBALS[var] = value
-
-		cmd:Set("")
-	elseif sent_command:find(getvars) then
-		for name, value in pairs(GB_GLOBALS) do
-			printc(255, 255, 255, 255, name .. " = " .. tostring(value))
-		end
-		cmd:Set("")
-	end
-end
-
-printc(
-	200,
-	255,
-	200,
-	255,
-	"Guide on how to use the commands",
-	"setvar -> sets the variable",
-	"getvars -> prints all the variables here",
-	" ",
-	"example:",
-	"setvar m_bNoRecoil false",
-	"setvar m_vecShootPos vector 200 150 690",
-	"setvar m_angViewAngles euler 420 159 69",
-	" ",
-	"you can run a function by just putting their name",
-	"like this: setvar toggle_real_yaw"
-)
-
-callbacks.Register("SendStringCmd", "SSC garlic bread console commands", SendStringCmd)
-
-end)
 __bundle_register("src.background", function(require, _LOADED, __bundle_register, __bundle_modules)
 local function Background()
 	if clientstate:GetNetChannel() then
@@ -187,26 +108,28 @@ local movement = {}
 
 ---@param usercmd UserCmd
 local function CreateMove(usercmd)
-	if GB_GLOBALS then
-		local localplayer = entities:GetLocalPlayer()
-		if not localplayer or not localplayer:IsAlive() then
-			return
-		end
-
-		if GB_GLOBALS.m_bBhopEnabled then
-			local flags = localplayer:GetPropInt("m_fFlags")
-			local ground = flags & FL_ONGROUND == 1
-			local jump = usercmd.buttons & IN_JUMP == 1
-			if ground and jump then
-				usercmd.buttons = usercmd.buttons | IN_JUMP
-			elseif (not ground and jump) or (not ground and not jump) then
-				usercmd.buttons = usercmd.buttons & ~IN_JUMP
-			end
+	local localplayer = entities:GetLocalPlayer()
+	if (not localplayer or not localplayer:IsAlive()) then return end
+	if GB_GLOBALS and GB_GLOBALS.m_bBhopEnabled then
+		local flags = localplayer:GetPropInt("m_fFlags")
+		local ground = flags & FL_ONGROUND == 1
+		local jump = usercmd.buttons & IN_JUMP == 1
+		if ground and jump then
+			usercmd.buttons = usercmd.buttons | IN_JUMP
+		elseif (not ground and jump) or (not ground and not jump) then
+			usercmd.buttons = usercmd.buttons & ~IN_JUMP
 		end
 	end
 end
 
 movement.CreateMove = CreateMove
+
+local function cmd_ToggleBhop()
+	GB_GLOBALS.m_bBhopEnabled = not GB_GLOBALS.m_bBhopEnabled
+	printc(150, 255, 150, 255, "Bhop is now " .. (GB_GLOBALS.m_bBhopEnabled and "enabled" or "disabled"))
+end
+
+GB_GLOBALS.RegisterCommand("misc->toggle_bhop", "Toggles bunny hopping", 0, cmd_ToggleBhop)
 
 return movement
 
@@ -216,9 +139,10 @@ local visuals = {}
 
 ---@param setup ViewSetup
 local function CustomFOV(setup)
-	if not GB_GLOBALS then
-		return
-	end
+	if not GB_GLOBALS then return end
+
+	local player = entities:GetLocalPlayer()
+	if (not player) then return end
 
 	GB_GLOBALS.m_nPreAspectRatio = setup.aspectRatio
 	setup.aspectRatio = GB_GLOBALS.m_nAspectRatio == 0 and setup.aspectRatio or GB_GLOBALS.m_nAspectRatio
@@ -230,19 +154,24 @@ local function CustomFOV(setup)
   (120.26020812988*120)/90 = x fov
   --]]
 
-	if GB_GLOBALS.m_hLocalPlayer then
-		local fov = GB_GLOBALS.m_hLocalPlayer:InCond(E_TFCOND.TFCond_Zoomed) and 20 or GB_GLOBALS.m_flCustomFOV
+		local fov = player:InCond(E_TFCOND.TFCond_Zoomed) and 20 or GB_GLOBALS.m_flCustomFOV
 		local render_fov = (106.26020812988 * fov) / 90
 		setup.fov = render_fov
 
-		if GB_GLOBALS.m_bNoRecoil and GB_GLOBALS.m_hLocalPlayer:GetPropInt("m_nForceTauntCam") == 0 then
-			local punchangle = GB_GLOBALS.m_hLocalPlayer:GetPropVector("m_vecPunchAngle")
+		if GB_GLOBALS.m_bNoRecoil and player:GetPropInt("m_nForceTauntCam") == 0 then
+			local punchangle = player:GetPropVector("m_vecPunchAngle")
 			setup.angles = EulerAngles((setup.angles - punchangle):Unpack())
 		end
-	end
 end
 
 visuals.CustomFOV = CustomFOV
+
+local function cmd_ChangeFOV(args)
+	if (not args or #args == 0 or not args[1]) then return end
+	GB_GLOBALS.m_flCustomFOV = tonumber(args[1])
+end
+
+GB_GLOBALS.RegisterCommand("visuals->customfov", "Changes custom fov | args: new fov (number)", 1, cmd_ChangeFOV)
 
 return visuals
 
@@ -250,6 +179,9 @@ end)
 __bundle_register("src.antiaim", function(require, _LOADED, __bundle_register, __bundle_modules)
 ---@diagnostic disable:cast-local-type
 local antiaim = {}
+
+local m_bPitchEnabled = false
+local m_realyaw, m_fakeyaw, m_realpitch, m_fakepitch = 0, 0, 0, 0
 
 ---@param usercmd UserCmd
 function antiaim.CreateMove(usercmd)
@@ -268,15 +200,20 @@ function antiaim.CreateMove(usercmd)
 		end
 
 		local view = engine:GetViewAngles()
-		local m_realyaw = view.y + (GB_GLOBALS.anti_aim.real_yaw and GB_GLOBALS.m_flRealYaw or 0)
-		local m_fakeyaw = view.y + (GB_GLOBALS.anti_aim.fake_yaw and GB_GLOBALS.m_flFakeYaw or 0)
-		if usercmd.tick_count % 2 == 0 then
-			usercmd:SetViewAngles(GB_GLOBALS.anti_aim.real_pitch and GB_GLOBALS.m_flRealPitch or view.x, m_realyaw, 0)
-			usercmd.sendpacket = false
-		else
-			--view = view + Vector3(m_settings.pitch.fake, m_fakeyaw, 0)
-			usercmd:SetViewAngles(GB_GLOBALS.anti_aim.fake_pitch and GB_GLOBALS.m_flFakePitch or view.x, m_fakeyaw, 0)
-		end
+
+		local realyaw = view.y + (m_realyaw or 0)
+		local fakeyaw = view.y + (m_fakeyaw or 0)
+		local realpitch = m_bPitchEnabled and m_realpitch or view.x
+		local fakepitch = m_bPitchEnabled and m_fakepitch or view.x
+
+		local is_real_yaw_tick = usercmd.tick_count % 2 == 0
+
+		local pitch, yaw
+		pitch = is_real_yaw_tick and realpitch or fakepitch
+		yaw = is_real_yaw_tick and realyaw or fakeyaw
+
+		usercmd:SetViewAngles(pitch, yaw, 0)
+		usercmd.sendpacket = not is_real_yaw_tick
 	end
 end
 
@@ -284,6 +221,43 @@ function antiaim.unload()
 	antiaim = nil
 end
 
+local function cmd_toggle_aa()
+	GB_GLOBALS.m_bAntiAimEnabled = not GB_GLOBALS.m_bAntiAimEnabled
+	printc(150, 255, 150, 255, "Anti aim is now " .. (GB_GLOBALS.m_bAntiAimEnabled and "enabled" or "disabled"))
+end
+
+local function cmd_set_options(args)
+	if (not args or #args == 0) then return end
+	if (not args[1] or not args[2] or not args[3]) then return end
+
+	local fake = args[1] == "fake"
+	local real = args[1] == "real"
+	local wants_yaw = args[2] == "yaw"
+	local wants_pitch = args[2] == "pitch"
+	local new_value = tonumber(args[3])
+	if (not new_value) then print("Invalid value!") return end
+
+	--local key = "m_fl%s%s"
+	--local formatted = string.format(key, fake and "Fake" or "Real", wants_yaw and "Yaw" or "Pitch")
+	if (fake and wants_yaw) then
+		m_fakeyaw = new_value
+	elseif (fake and not wants_pitch) then
+		m_fakepitch = new_value
+	elseif (real and wants_yaw) then
+		m_realyaw = new_value
+	elseif (real and wants_pitch) then
+		m_realpitch = new_value
+	end
+end
+
+local function cmd_toggle_pitch()
+	m_bPitchEnabled = not m_bPitchEnabled
+	printc(150, 255, 150, 255, "Anti aim pitch is now " .. (m_bPitchEnabled and "enabled" or "disabled"))
+end
+
+GB_GLOBALS.RegisterCommand("antiaim->change", "Changes antiaim's settings | args: fake or real (string), yaw or pitch (string), new_value (number)", 3, cmd_set_options)
+GB_GLOBALS.RegisterCommand("antiaim->toggle", "Toggles antiaim", 0, cmd_toggle_aa)
+GB_GLOBALS.RegisterCommand("antiaim->toggle_pitch", "Toggles real and fake pitch from being added to viewangles", 0, cmd_toggle_pitch)
 return antiaim
 
 end)
@@ -299,7 +273,9 @@ local max_ticks = 0
 local last_key_tick = 0
 local next_passive_tick = 0
 
+local m_enabled = true
 local shooting = false
+local warping, recharging = false, false
 
 local font = draw.CreateFont("TF2 BUILD", 16, 1000)
 
@@ -371,7 +347,8 @@ end
 
 ---@param msg NetMessage
 function HandleWarp(msg)
-	if GB_GLOBALS.m_hLocalPlayer and m_localplayer_speed <= 0 and not m_settings.warp.standing_still then
+	local player = entities:GetLocalPlayer()
+	if player and m_localplayer_speed <= 0 and not m_settings.warp.standing_still then
 		return
 	end
 
@@ -383,7 +360,7 @@ function HandleWarp(msg)
 		return
 	end
 
-	if GB_GLOBALS.m_hLocalPlayer and GB_GLOBALS.m_hLocalPlayer:IsAlive() and charged_ticks > 0 and CanShift() then
+	if player and player:IsAlive() and charged_ticks > 0 and CanShift() then
 		--local moveMsg = clc_Move()
 
 		--- the new BitBuffer lib
@@ -400,14 +377,16 @@ function HandleWarp(msg)
 end
 
 local function HandlePassiveRecharge()
-	assert(GB_GLOBALS.m_hLocalPlayer, "HandlePassiveRecharge: m_localplayer is nil!")
 	if not m_settings.warp.passive.enabled or charged_ticks >= max_ticks then
 		return false
 	end
 
+	local player = entities:GetLocalPlayer()
+	if (not player) then return false end
+
 	if
 		(globals.TickCount() >= next_passive_tick)
-		or (m_settings.warp.passive.while_dead and not GB_GLOBALS.m_hLocalPlayer:IsAlive())
+		or (m_settings.warp.passive.while_dead and not player:IsAlive())
 	then
 		charged_ticks = charged_ticks + 1
 		local time = engine.RandomFloat(m_settings.warp.passive.min_time, m_settings.warp.passive.max_time)
@@ -426,7 +405,7 @@ local function HandleRecharge()
 		return false
 	end
 
-	if CanChoke() and charged_ticks < max_ticks and GB_GLOBALS.m_bRecharging then
+	if CanChoke() and charged_ticks < max_ticks and recharging then
 		charged_ticks = charged_ticks + 1
 		return true
 	end
@@ -456,6 +435,12 @@ end
 ---@param reliable boolean
 ---@param isvoice boolean
 function tickshift.SendNetMsg(msg, reliable, isvoice)
+	GB_GLOBALS.m_bWarping = false
+	GB_GLOBALS.m_bRecharging = false
+
+	--- return early if user disabled with console commands
+	if (not m_enabled) then return true end
+
 	if msg:GetType() == SIGNONSTATE_TYPE then
 		HandleJoinServers(msg)
 	end
@@ -469,9 +454,11 @@ function tickshift.SendNetMsg(msg, reliable, isvoice)
 	end
 
 	if msg:GetType() == CLC_MOVE_TYPE then
-		if GB_GLOBALS.m_bWarping and not GB_GLOBALS.m_bRecharging then
+		if warping and not recharging then
+			GB_GLOBALS.m_bWarping = true
 			HandleWarp(msg)
 		elseif HandleRecharge() then
+			GB_GLOBALS.m_bRecharging = true
 			return false
 		end
 	end
@@ -485,19 +472,23 @@ end
 
 ---@param usercmd UserCmd
 function tickshift.CreateMove(usercmd)
-	if engine.IsChatOpen() or engine.IsGameUIVisible() or engine.Con_IsVisible() or not GB_GLOBALS.m_hLocalPlayer then
+	if engine.IsChatOpen() or engine.IsGameUIVisible() or engine.Con_IsVisible()
+		or GB_GLOBALS.m_bIsStacRunning or (not m_enabled) then
 		return
 	end
 
-	m_localplayer_speed = GB_GLOBALS.m_hLocalPlayer and GB_GLOBALS.m_hLocalPlayer:EstimateAbsVelocity():Length() or 0
-	m_bIsRED = GB_GLOBALS.m_hLocalPlayer:GetTeamNumber() == 2
+	local player = entities:GetLocalPlayer()
+	if (not player) then return end
+
+	m_localplayer_speed = player:EstimateAbsVelocity():Length() or 0
+	m_bIsRED = player:GetTeamNumber() == 2
 	max_ticks = GetMaxServerTicks()
 	charged_ticks = clamp(charged_ticks, 0, max_ticks)
 
-	GB_GLOBALS.m_bWarping = input.IsButtonDown(m_settings.warp.send_key)
-	GB_GLOBALS.m_bRecharging = input.IsButtonDown(m_settings.warp.recharge_key)
-
-	shooting = (usercmd.buttons & IN_ATTACK) ~= 0 or GB_GLOBALS.m_bIsAimbotShooting
+	shooting = ((usercmd.buttons & IN_ATTACK) ~= 0 or GB_GLOBALS.m_bIsAimbotShooting) and GB_GLOBALS.CanWeaponShoot()
+	warping = input.IsButtonDown(m_settings.warp.send_key)
+	GB_GLOBALS.m_bWarping = warping
+	recharging = input.IsButtonDown(m_settings.warp.recharge_key)
 
 	local state, tick = input.IsButtonPressed(m_settings.warp.passive.toggle_key)
 	if state and last_key_tick < tick then
@@ -512,6 +503,7 @@ function tickshift.Draw()
 		engine:Con_IsVisible()
 		or engine:IsGameUIVisible()
 		or (engine:IsTakingScreenshot() and gui.GetValue("clean screenshots") == 1)
+		or (not m_enabled)
 	then
 		return
 	end
@@ -553,6 +545,12 @@ function tickshift.Draw()
 	draw.TextShadow(textX, textY, formatted_text)
 end
 
+local function cmd_ToggleTickShift()
+	m_enabled = not m_enabled
+	print(150, 255, 150, 255, "Tick shifting is now " .. (m_enabled and "enabled" or "disabled"))
+end
+
+GB_GLOBALS.RegisterCommand("tickshift->toggle", "Toggles tickshifting (warp, recharge)", 0, cmd_ToggleTickShift)
 return tickshift
 
 end)
@@ -619,6 +617,8 @@ local CLASS_HITBOXES = require("src.hitboxes")
 	RightLeg = 17,
 }]]
 
+local VISIBLE_FRACTION = 0.4
+
 local lastFire = 0
 local nextAttack = 0
 local old_weapon = nil
@@ -658,7 +658,6 @@ local atan = math.atan
 local PI = math.pi
 local RADPI = 180 / PI
 local vecMultiply = vector.Multiply
-local GetByIndex = entities.GetByIndex
 
 ---
 
@@ -721,6 +720,8 @@ local function CanWeaponShoot()
 	return nextAttack <= globals.CurTime()
 end
 
+GB_GLOBALS.CanWeaponShoot = CanWeaponShoot
+
 ---@param bone Matrix3x4
 local function GetBoneOrigin(bone)
 	return Vector3(bone[1][4], bone[2][4], bone[3][4])
@@ -746,7 +747,7 @@ local function RunMelee(usercmd)
 	if weapon and weapon:IsMeleeWeapon() then
 		local swing_trace = weapon:DoSwingTrace()
 
-		if swing_trace and swing_trace.entity and swing_trace.entity and swing_trace.fraction <= 0.98 then
+		if swing_trace and swing_trace.entity and swing_trace.fraction >= 0.95 then
 			local entity = swing_trace.entity
 			local entity_team = entity:GetTeamNumber()
 			local index = entity:GetIndex()
@@ -789,25 +790,16 @@ local function CreateMove(usercmd)
 	GB_GLOBALS.m_bIsAimbotShooting = false
 	GB_GLOBALS.m_nAimbotTarget = nil
 
-	if not input.IsButtonDown(settings.key) then
-		return
-	end
-
-	if engine.IsChatOpen() or engine.Con_IsVisible() or engine.IsGameUIVisible() then
-		return
-	end
-
 	localplayer = entities:GetLocalPlayer()
-	if not localplayer or not localplayer:IsAlive() then
-		return
-	end
+	if not localplayer or not localplayer:IsAlive() then return end
+	m_team = localplayer:GetTeamNumber()
 
 	weapon = localplayer:GetPropEntity("m_hActiveWeapon")
-	if not weapon then
-		return
-	end
+	if not weapon then return end
 
-	m_team = localplayer:GetTeamNumber()
+
+	if not input.IsButtonDown(settings.key) then return end
+	if engine.IsChatOpen() or engine.Con_IsVisible() or engine.IsGameUIVisible() then return end
 
 	--- if it returns true, it means it was a melee weapon and it did the proper math for them
 	if weapon:IsMeleeWeapon() then
@@ -815,19 +807,42 @@ local function CreateMove(usercmd)
 		return
 	end
 
+	--- try to make stac dont ban us :3
+	local m_AimbotMode = GB_GLOBALS.m_bIsStacRunning and aimbot_mode.smooth or settings.mode
+	local m_SmoothValue = GB_GLOBALS.m_bIsStacRunning and 10 or settings.smooth_value
+
 	local shoot_pos = GetShootPosition()
 	if not shoot_pos then
 		return
 	end
 
 	local punchangles = weapon:GetPropVector("m_vecPunchAngle") or Vector3()
-
 	local should_aim_at_head = ShouldAimAtHead()
 
 	--- trust me, i tried like 3 or 4 different math combinations
 	--- and i decided to just give up and paste amalgam for the fov xd
 
 	local best_angle, best_fov, target, looking_at_target = nil, settings.fov, nil, false
+
+	---@param class Entity[]
+	local function CheckBuilding(class)
+		for _, entity in pairs(class) do
+			local mins, maxs = entity:GetMins(), entity:GetMaxs()
+			local center = entity:GetAbsOrigin() + ((mins + maxs) * 0.5)
+
+			local trace = TraceLine(shoot_pos, center, MASK_SHOT_HULL)
+			if trace and trace.entity == entity and trace.fraction >= VISIBLE_FRACTION then
+				local angle = ToAngle(center - shoot_pos) - (usercmd.viewangles - punchangles)
+				local fov = sqrt((angle.x ^ 2) + (angle.y ^ 2))
+
+				if fov < best_fov then
+					best_fov = fov
+					best_angle = angle
+					target = entity:GetIndex() --- not saving the whole entity here, too much memory used!
+				end
+			end
+		end
+	end
 
 	for _, entity in pairs(Players) do
 		if not entity or entity:IsDormant() or not entity:IsAlive() or entity:GetTeamNumber() == m_team then
@@ -857,19 +872,13 @@ local function CreateMove(usercmd)
 		end
 
 		local bones = entity:SetupBones()
-		if not bones then
-			goto continue
-		end
+		if not bones then goto continue end
 
 		local bone_position = GetBoneOrigin(bones[best_bone_for_weapon])
-		if not bone_position then
-			goto continue
-		end
+		if not bone_position then goto continue end
 
 		local trace = TraceLine(shoot_pos, bone_position, MASK_SHOT_HULL)
-		if not trace then
-			goto continue
-		end
+		if not trace then goto continue end
 
 		local looking_at_trace =
 			TraceLine(shoot_pos, shoot_pos + engine:GetViewAngles():Forward() * 1000, MASK_SHOT_HULL)
@@ -890,7 +899,7 @@ local function CreateMove(usercmd)
 			return false
 		end
 
-		if trace and trace.entity == entity and trace.fraction < 0.99 then
+		if trace and trace.entity == entity and trace.fraction >= VISIBLE_FRACTION then
 			--- for smooth aimbot, ensure we are aiming somewhat close to the target so we can shoot
 			if looking_at_trace and looking_at_trace.entity and looking_at_trace.entity == entity then
 				looking_at_target = true
@@ -903,22 +912,16 @@ local function CreateMove(usercmd)
 				--- already tried the best one
 				if bone ~= best_bone_for_weapon then
 					bone_position = GetBoneOrigin(bones[bone])
-					if not bone_position then
-						goto skip_bone
-					end
+					if not bone_position then goto skip_bone end
 
 					trace = TraceLine(shoot_pos, bone_position, MASK_SHOT_HULL)
-					if not trace then
-						goto skip_bone
-					end
+					if not trace then goto skip_bone end
 
-					if trace.entity == entity and trace.fraction < 0.99 then
+					if trace.entity == entity and trace.fraction >= VISIBLE_FRACTION then
 						if
-							not looking_at_target
-							and looking_at_trace
-							and looking_at_trace.entity
-							and looking_at_trace.entity == entity
-						then
+							not looking_at_target and looking_at_trace
+							and looking_at_trace.entity and looking_at_trace.entity == entity
+							and looking_at_trace.hitbox ~= 0 then
 							looking_at_target = true
 						end
 
@@ -931,79 +934,33 @@ local function CreateMove(usercmd)
 		::continue::
 	end
 
-	for _, entity in pairs(Dispensers) do
-		local mins, maxs = entity:GetMins(), entity:GetMaxs()
-		local center = entity:GetAbsOrigin() + ((mins + maxs) * 0.5)
-
-		local trace = TraceLine(shoot_pos, center, MASK_SHOT_HULL)
-		if trace and trace.entity == entity and trace.fraction < 0.99 then
-			local angle = ToAngle(center - shoot_pos) - (usercmd.viewangles - punchangles)
-			local fov = sqrt((angle.x ^ 2) + (angle.y ^ 2))
-
-			if fov < best_fov then
-				best_fov = fov
-				best_angle = angle
-				target = entity:GetIndex() --- not saving the whole entity here, too much memory used!
-			end
-		end
+	if settings.aim.sentries then
+		CheckBuilding(Sentries)
 	end
 
-	for _, entity in pairs(Teleporters) do
-		local mins, maxs = entity:GetMins(), entity:GetMaxs()
-		local center = entity:GetAbsOrigin() + ((mins + maxs) * 0.5)
-
-		local trace = TraceLine(shoot_pos, center, MASK_SHOT_HULL)
-		if trace and trace.entity == entity and trace.fraction < 0.99 then
-			local angle = ToAngle(center - shoot_pos) - (usercmd.viewangles - punchangles)
-			local fov = sqrt((angle.x ^ 2) + (angle.y ^ 2))
-
-			if fov < best_fov then
-				best_fov = fov
-				best_angle = angle
-				target = entity:GetIndex() --- not saving the whole entity here, too much memory used!
-			end
-		end
-	end
-
-	for _, entity in pairs(Sentries) do
-		local mins, maxs = entity:GetMins(), entity:GetMaxs()
-		local center = entity:GetAbsOrigin() + ((mins + maxs) * 0.5)
-
-		local trace = TraceLine(shoot_pos, center, MASK_SHOT_HULL)
-		if trace and trace.entity == entity and trace.fraction < 0.99 then
-			local angle = ToAngle(center - shoot_pos) - (usercmd.viewangles - punchangles)
-			local fov = sqrt((angle.x ^ 2) + (angle.y ^ 2))
-
-			if fov < best_fov then
-				best_fov = fov
-				best_angle = angle
-				target = entity:GetIndex() --- not saving the whole entity here, too much memory used!
-			end
-		end
+	if settings.aim.other_buildings then
+		CheckBuilding(Dispensers)
+		CheckBuilding(Teleporters)
 	end
 
 	local can_shoot = CanWeaponShoot() -- if autoshoot is off and player is trying to shoot, we aim for them
 
 	if best_angle then
+		local smoothed = engine:GetViewAngles() + vecMultiply(best_angle, (m_SmoothValue * 0.01 --[[/100]]))
 		if can_shoot then
-			usercmd.viewangles = usercmd.viewangles
-				+ (
-					settings.mode == aimbot_mode.smooth
-						and vecMultiply(best_angle, (settings.smooth_value * 0.01 --[[/100]]))
-					or best_angle
-				)
+			usercmd.viewangles = usercmd.viewangles + (m_AimbotMode == aimbot_mode.smooth and smoothed or best_angle)
 		end
 
-		if settings.mode == aimbot_mode.plain and can_shoot then
-			engine.SetViewAngles(EulerAngles(best_angle:Unpack()))
-		elseif settings.mode == aimbot_mode.smooth then
-			local smoothed = engine:GetViewAngles() + vecMultiply(best_angle, (settings.smooth_value * 0.01 --[[/100]]))
+		if m_AimbotMode == aimbot_mode.plain and can_shoot then
+			local angle = engine:GetViewAngles() + best_angle
+			engine.SetViewAngles(EulerAngles(angle:Unpack()))
+		elseif m_AimbotMode == aimbot_mode.smooth then
 			engine.SetViewAngles(EulerAngles(smoothed:Unpack()))
 			usercmd.viewangles = smoothed
 		end
 
 		if can_shoot then
-			if settings.mode ~= aimbot_mode.smooth then
+			if m_AimbotMode ~= aimbot_mode.smooth then
 				usercmd.buttons = usercmd.buttons | IN_ATTACK
 			else
 				if looking_at_target then
@@ -1041,13 +998,14 @@ local function Draw()
 	) * (width * 0.5)
 	--* (GB_GLOBALS.m_nAspectRatio == 0 and GB_GLOBALS.m_nPreAspectRatio or GB_GLOBALS.m_nAspectRatio)]]
 
-	if localplayer and localplayer:IsAlive() then
+	if localplayer and localplayer:IsAlive() and settings.fov <= 89 then
 		local aspect_ratio = (
 			GB_GLOBALS.m_nAspectRatio == 0 and GB_GLOBALS.m_nPreAspectRatio or GB_GLOBALS.m_nAspectRatio
 		)
 		local fov = localplayer:InCond(E_TFCOND.TFCond_Zoomed) and 20 or GB_GLOBALS.m_flCustomFOV
 		-- i just gave up and pasted amalgam's draw fov
 		local radius = math.tan(math.rad(settings.fov)) / math.tan(math.rad(fov) / 2) * width * (4 / 6) / aspect_ratio
+		--- and its still fucking not accurate, ig im calculating fov on aimbot wrong
 
 		--[[
   1.33 -- radius
@@ -1065,6 +1023,45 @@ local function Draw()
 		)
 	end
 end
+
+local function cmd_ChangeAimbotMode(args)
+	if (not args or #args == 0) then return end
+	local mode = tostring(args[1])
+	settings.mode = aimbot_mode[mode]
+end
+
+local function cmd_ChangeAimbotKey(args)
+	if (not args or #args == 0) then return end
+
+	local key = string.upper(tostring(args[1]))
+
+	local selected_key = E_ButtonCode["KEY_" .. key]
+	if (not selected_key) then print("Invalid key!") return end
+
+	settings.key = selected_key
+end
+
+local function cmd_ChangeAimbotFov(args)
+	if (not args or #args == 0 or not args[1]) then return end
+	settings.fov = tonumber(args[1])
+end
+
+local function cmd_ChangeAimbotIgnore(args)
+	if (not args or #args == 0) then return end
+	if (not args[1] or not args[2]) then return end
+
+	local option = tostring(args[1])
+	local ignoring = settings.ignore[option] and "aiming for" or "ignoring"
+
+	settings.ignore[option] = not settings.ignore[option]
+
+	printc(150, 255, 150, 255, "Aimbot is now " .. ignoring .. " " .. option)
+end
+
+GB_GLOBALS.RegisterCommand("aimbot->change_mode", "Change aimbot mode | args: mode (plain, smooth or silent)", 1, cmd_ChangeAimbotMode)
+GB_GLOBALS.RegisterCommand("aimbot->change_key", "Changes aimbot key | args: key (w, f, g, ...)", 1, cmd_ChangeAimbotKey)
+GB_GLOBALS.RegisterCommand("aimbot->change_fov", "Changes aimbot fov | args: fov (number)", 1, cmd_ChangeAimbotFov)
+GB_GLOBALS.RegisterCommand("aimbot->ignore->toggle", "Toggles a aimbot ignore option | args: option name (string)", 1, cmd_ChangeAimbotIgnore)
 
 local aimbot = {}
 aimbot.CreateMove = CreateMove
@@ -1238,19 +1235,89 @@ local CLASS_HITBOXES = {
 return CLASS_HITBOXES
 
 end)
+__bundle_register("src.commands", function(require, _LOADED, __bundle_register, __bundle_modules)
+local m_commands = {}
+local m_prefix = "gb"
+
+--[[
+	gb command args
+]]
+
+--- If no additional param other than cmdname, the command has no args
+---@param cmdname string
+---@param help string
+---@param num_args integer
+---@param func function?
+local function RegisterCommand(cmdname, help, num_args, func)
+	m_commands[cmdname] = {func = func, help = help, num_args = num_args}
+end
+
+---@param cmd StringCmd
+local function SendStringCmd(cmd)
+	local sent_command = cmd:Get()
+	local words = {}
+	for word in string.gmatch(sent_command, "%S+") do
+		words[#words + 1] = word
+	end
+
+	if (words[1] ~= m_prefix) then return end
+	--- remove prefix
+	table.remove(words, 1)
+
+	if (m_commands[words[1]]) then
+		--local command = m_commands[words[1]] -- command.func, [...]: any
+		local command = m_commands[words[1]]
+		table.remove(words, 1)
+
+		local func = command.func
+		assert(type(func) == "function", "SendStringCmd -> command.func is not a function! wtf")
+
+		local num_args = command.num_args
+		assert(type(num_args) == "number", "SendStringCmd -> command.num_args is not a number! wtf")
+
+		local args = {}
+		for i = 1, num_args do
+			local arg = tostring(words[i])
+			args[i] = arg
+		end
+
+		func(args)
+
+		cmd:Set("")
+	end
+end
+
+local function print_help()
+	printc(255, 150, 150, 255, "Stac is " .. (GB_GLOBALS.m_bIsStacRunning and "detected" or "not running") .. " in this server")
+	printc(255, 255, 255, 255, "The commands are:")
+
+	for name, props in pairs (m_commands) do
+		local str = "[ %s ] : %s"
+		printc(200, 200, 200, 200, string.format(str, name, props.help))
+	end
+end
+
+RegisterCommand("help", "prints all command's description and usage", 0, print_help)
+
+printc(255, 255, 255, 255, "You can use 'gb help' command to print all the console commands")
+
+GB_GLOBALS.RegisterCommand = RegisterCommand
+callbacks.Register("SendStringCmd", "SSC garlic bread console commands", SendStringCmd)
+end)
 __bundle_register("src.anticheat", function(require, _LOADED, __bundle_register, __bundle_modules)
 local clc_RespondCvarValue = 13
 local SIGNONSTATE_TYPE = 6
 
 ---@param msg NetMessage
 local function AntiCheat(msg)
-	if msg:GetType() == SIGNONSTATE_TYPE and clientstate:GetClientSignonState() == E_SignonState.SIGNONSTATE_SPAWN then
+	if msg:GetType() == SIGNONSTATE_TYPE and clientstate:GetClientSignonState() == E_SignonState.SIGNONSTATE_NONE then
 		GB_GLOBALS.m_bIsStacRunning = false
 	end
 
 	if msg:GetType() == clc_RespondCvarValue and not GB_GLOBALS.m_bIsStacRunning then
 		GB_GLOBALS.m_bIsStacRunning = true
-		printc(255, 200, 200, 255, "STAC/SMAC was detected! Disabling some features...")
+		printc(255, 200, 200, 255, "STAC/SMAC was detected! Some features are disabled")
+		client.ChatPrintf("STAC/SMAC was detected! Some features are disabled")
 	end
 
 	return true
@@ -1260,6 +1327,8 @@ callbacks.Register("SendNetMsg", "NETMSG garlic bread stac detector", AntiCheat)
 
 end)
 __bundle_register("src.bitbuf", function(require, _LOADED, __bundle_register, __bundle_modules)
+---@diagnostic disable: duplicate-set-field
+---@diagnostic disable: duplicate-doc-field
 local NEW_COMMANDS_SIZE = 4
 local BACKUP_COMMANDS_SIZE = 3
 local MSG_SIZE = 6
@@ -1347,14 +1416,6 @@ end
 end)
 __bundle_register("src.globals", function(require, _LOADED, __bundle_register, __bundle_modules)
 GB_GLOBALS = {
-	usercmd_buttons = nil,
-	m_hLocalPlayer = nil,
-	m_hActiveWeapon = nil,
-	m_Team = nil,
-
-	m_vecShootPos = nil,
-	m_angViewAngles = nil,
-
 	m_bIsStacRunning = false,
 
 	m_bIsAimbotShooting = false,
@@ -1363,15 +1424,7 @@ GB_GLOBALS = {
 	m_bWarping = false,
 	m_bRecharging = false,
 
-	m_flFakeYaw = 0,
-	m_flRealYaw = 90,
-	m_flRealPitch = 0,
-	m_flFakePitch = 0,
 	m_bAntiAimEnabled = false,
-
-	bIsAntiAimTick = function(tick)
-		return tick % 2 == 0
-	end,
 
 	m_flCustomFOV = 90,
 	m_nPreAspectRatio = 0,
@@ -1379,56 +1432,7 @@ GB_GLOBALS = {
 
 	m_bNoRecoil = true,
 
-	toggle_fake_yaw = function()
-		GB_GLOBALS.anti_aim.fake_yaw = not GB_GLOBALS.anti_aim.fake_yaw
-		print(GB_GLOBALS.anti_aim.fake_yaw)
-	end,
-
-	toggle_real_yaw = function()
-		GB_GLOBALS.anti_aim.real_yaw = not GB_GLOBALS.anti_aim.real_yaw
-		print(GB_GLOBALS.anti_aim.real_yaw)
-	end,
-
-	toggle_real_pitch = function()
-		GB_GLOBALS.anti_aim.real_pitch = not GB_GLOBALS.anti_aim.real_pitch
-		print(GB_GLOBALS.anti_aim.real_pitch)
-	end,
-
-	toggle_fake_pitch = function()
-		GB_GLOBALS.anti_aim.fake_pitch = not GB_GLOBALS.anti_aim.fake_pitch
-		print(GB_GLOBALS.anti_aim.fake_pitch)
-	end,
-
-	anti_aim = {
-		fake_yaw = false,
-		real_yaw = true,
-		fake_pitch = false,
-		real_pitch = true,
-	},
-
 	m_bBhopEnabled = false,
 }
-
----@param usercmd UserCmd
-local function UpdateGlobals(usercmd)
-	GB_GLOBALS.m_angViewAngles = engine:GetViewAngles()
-	GB_GLOBALS.m_hLocalPlayer = entities:GetLocalPlayer()
-	if GB_GLOBALS.m_hLocalPlayer then
-		GB_GLOBALS.m_hActiveWeapon = GB_GLOBALS.m_hLocalPlayer:GetPropEntity("m_hActiveWeapon")
-		GB_GLOBALS.m_vecShootPos = GB_GLOBALS.m_hLocalPlayer:GetAbsOrigin()
-			+ GB_GLOBALS.m_hLocalPlayer:GetPropVector("m_vecViewOffset[0]")
-
-		GB_GLOBALS.m_Team = GB_GLOBALS.m_hLocalPlayer:GetTeamNumber()
-		GB_GLOBALS.usercmd_buttons = usercmd.buttons
-	end
-
-	--- m_bIsStacRunning is updated in anticheat.lua
-	--- m_nAimbotTarget, m_bIsAimbotShooting is updated in aimbot.lua
-	--- m_bWarping, m_bRecharging is updated in tickshift.lua
-end
-
-callbacks.Unregister("CreateMove", "GLOBAL CM garlic bread variables")
-callbacks.Register("CreateMove", "GLOBAL CM garlic bread variables", UpdateGlobals)
-
 end)
 return __bundle_require("__root")

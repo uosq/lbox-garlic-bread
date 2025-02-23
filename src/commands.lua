@@ -1,76 +1,67 @@
-local setvar = "setvar"
-local getvars = "getvars"
+local m_commands = {}
+local m_prefix = "gb"
+
+--[[
+	gb command args
+]]
+
+--- If no additional param other than cmdname, the command has no args
+---@param cmdname string
+---@param help string
+---@param num_args integer
+---@param func function?
+local function RegisterCommand(cmdname, help, num_args, func)
+	m_commands[cmdname] = {func = func, help = help, num_args = num_args}
+end
 
 ---@param cmd StringCmd
 local function SendStringCmd(cmd)
-	if not GB_GLOBALS then
-		return
-	end
 	local sent_command = cmd:Get()
-	if sent_command:find(setvar) then
-		local words = {}
-		for word in string.gmatch(sent_command, "%S+") do
-			words[#words + 1] = word
-		end
+	local words = {}
+	for word in string.gmatch(sent_command, "%S+") do
+		words[#words + 1] = word
+	end
 
+	if (words[1] ~= m_prefix) then return end
+	--- remove prefix
+	table.remove(words, 1)
+
+	if (m_commands[words[1]]) then
+		--local command = m_commands[words[1]] -- command.func, [...]: any
+		local command = m_commands[words[1]]
 		table.remove(words, 1)
-		local var = table.remove(words, 1)
 
-		if GB_GLOBALS[var] == nil then
-			cmd:Set("echo Couldnt find var!")
-			return
-		elseif type(GB_GLOBALS[var]) == "function" then
-			GB_GLOBALS[var]()
-			cmd:Set("")
-			return
+		local func = command.func
+		assert(type(func) == "function", "SendStringCmd -> command.func is not a function! wtf")
+
+		local num_args = command.num_args
+		assert(type(num_args) == "number", "SendStringCmd -> command.num_args is not a number! wtf")
+
+		local args = {}
+		for i = 1, num_args do
+			local arg = tostring(words[i])
+			args[i] = arg
 		end
 
-		local value = table.remove(words, 1)
+		func(args)
 
-		if value == "true" then
-			value = true
-		elseif value == "false" then
-			value = false
-		elseif string.find(var, "ang") or string.find(var, "vec") then --- assume its a EulerAngles or Vector3
-			local mode = string.find(var, "ang") and "euler" or "vec"
-			local x, y, z = table.remove(words, 1), table.remove(words, 1), table.remove(words, 1)
-			x, y, z = tonumber(x), tonumber(y), tonumber(z)
-			if mode == "vector" then
-				value = Vector3(x, y, z)
-			elseif mode == "euler" then
-				value = EulerAngles(x, y, z)
-			end
-		else
-			value = tonumber(value)
-		end
-
-		GB_GLOBALS[var] = value
-
-		cmd:Set("")
-	elseif sent_command:find(getvars) then
-		for name, value in pairs(GB_GLOBALS) do
-			printc(255, 255, 255, 255, name .. " = " .. tostring(value))
-		end
 		cmd:Set("")
 	end
 end
 
-printc(
-	200,
-	255,
-	200,
-	255,
-	"Guide on how to use the commands",
-	"setvar -> sets the variable",
-	"getvars -> prints all the variables here",
-	" ",
-	"example:",
-	"setvar m_bNoRecoil false",
-	"setvar m_vecShootPos vector 200 150 690",
-	"setvar m_angViewAngles euler 420 159 69",
-	" ",
-	"you can run a function by just putting their name",
-	"like this: setvar toggle_real_yaw"
-)
+local function print_help()
+	printc(255, 150, 150, 255, "Stac is " .. (GB_GLOBALS.m_bIsStacRunning and "detected" or "not running") .. " in this server")
+	printc(255, 255, 255, 255, "The commands are:")
 
+	for name, props in pairs (m_commands) do
+		local str = "[ %s ] : %s"
+		printc(200, 200, 200, 200, string.format(str, name, props.help))
+	end
+end
+
+RegisterCommand("help", "prints all command's description and usage", 0, print_help)
+
+printc(255, 255, 255, 255, "You can use 'gb help' command to print all the console commands")
+
+GB_GLOBALS.RegisterCommand = RegisterCommand
 callbacks.Register("SendStringCmd", "SSC garlic bread console commands", SendStringCmd)
