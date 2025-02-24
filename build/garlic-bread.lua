@@ -519,7 +519,7 @@ end
 
 GB_GLOBALS.RegisterCommand("chams->toggle", "Toggles chams", 0, CMD_ToggleChams)
 GB_GLOBALS.RegisterCommand("chams->material", "Changes chams material | args: material mode (flat or textured)", 1, CMD_ChangeMaterialMode)
-GB_GLOBALS.RegisterCommand("chams->change_color", "Changes the selected color on chams | args: color (string), r, g, b, a (numbers) | example: chams->change_color viewmodeel_arm 150 255 150 255", 5, CMD_ChangeColor)
+GB_GLOBALS.RegisterCommand("chams->change_color", "Changes the selected color on chams | args: color (string), r, g, b, a (numbers) | example: chams->change_color viewmodel_arm 150 255 150 255", 5, CMD_ChangeColor)
 GB_GLOBALS.RegisterCommand("chams->toggle_visible_only", "Makes chams only draw on visible entities", 0, CMD_ToggleVisibleOnly)
 GB_GLOBALS.RegisterCommand("chams->toggle_original_player_mat", "Toggles chams drawing the original player material", 0, CMD_ToggleDrawOriginalPlayerMat)
 GB_GLOBALS.RegisterCommand("chams->toggle_enemy_only", "Toggles chams drawing on only enemies or not", 0, CMD_ToggleDrawOnEnemyOnly)

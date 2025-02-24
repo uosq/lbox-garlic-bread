@@ -261,7 +261,7 @@ end
 
 local function cmd_ToggleTickShift()
 	m_enabled = not m_enabled
-	print(150, 255, 150, 255, "Tick shifting is now " .. (m_enabled and "enabled" or "disabled"))
+	printc(150, 255, 150, 255, "Tick shifting is now " .. (m_enabled and "enabled" or "disabled"))
 end
 
 GB_GLOBALS.RegisterCommand("tickshift->toggle", "Toggles tickshifting (warp, recharge)", 0, cmd_ToggleTickShift)
