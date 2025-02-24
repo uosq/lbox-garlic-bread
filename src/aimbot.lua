@@ -244,7 +244,7 @@ local function CreateMove(usercmd)
 	local m_AimbotMode = GB_GLOBALS.m_bIsStacRunning and aimbot_mode.smooth or settings.mode
 	local m_SmoothValue = GB_GLOBALS.m_bIsStacRunning and 20 or settings.smooth_value
 	local viewfov = localplayer:InCond(E_TFCOND.TFCond_Zoomed) and 20 or GB_GLOBALS.m_flCustomFOV
-	local m_Fov = settings.fov * (viewfov/90)
+	local m_Fov = settings.fov * (math.tan(math.rad(viewfov / 2)) / math.tan(math.rad(90 / 2)))
 
 	local shoot_pos = GetShootPosition()
 	if not shoot_pos then
@@ -424,8 +424,8 @@ local function Draw()
 	if (engine:IsGameUIVisible() or engine:Con_IsVisible()) then return end
 
 	if localplayer and localplayer:IsAlive() and settings.fov <= 89 then
-		local aimfov = settings.fov
 		local viewfov = GB_GLOBALS.m_flCustomFOV
+		local aimfov = settings.fov * (math.tan(math.rad(viewfov / 2)) / math.tan(math.rad(90 / 2)))
 		if (not aimfov or not viewfov) then return end --- wtf why is it a "number?"
 		local radius = (math.tan(math.rad(aimfov)/2))/(math.tan(math.rad(viewfov)/2)) * width
 		draw.Color(255,255,255,255)

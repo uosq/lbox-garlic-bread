@@ -67,6 +67,7 @@ local COLORS = {
 
   ORIGINAL_PLAYER = {255, 255, 255, 255},
   ORIGINAL_VIEWMODEL = {255, 255, 255, 255},
+
 }
 
 local chams = {}

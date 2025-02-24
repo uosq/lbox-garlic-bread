@@ -43,6 +43,7 @@ callbacks.Register("CreateMove", "CM garlic bread chams", chams.CreateMove)
 callbacks.Unregister("DrawModel", "DME garlic bread chams")
 callbacks.Register("DrawModel", "DME garlic bread chams", chams.DrawModel)
 
+--- this SendNetMsg overrides tickshift.SendNetMsg, gotta find a workaround or mix the two together (last option)
 --callbacks.Unregister("SendNetMsg", "NETMSG garlic bread spoof convars")
 --callbacks.Register("SendNetMsg", "NETMSG garlic bread spoof convars", spoof.SendNetMsg)
 
