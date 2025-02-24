@@ -27,7 +27,6 @@ local function SendStringCmd(cmd)
 	table.remove(words, 1)
 
 	if (m_commands[words[1]]) then
-		--local command = m_commands[words[1]] -- command.func, [...]: any
 		local command = m_commands[words[1]]
 		table.remove(words, 1)
 
@@ -43,10 +42,12 @@ local function SendStringCmd(cmd)
 			args[i] = arg
 		end
 
-		func(args)
+		func(args, num_args)
 
-		cmd:Set("")
+	else
+		printc(171, 160, 2, 255, "Invalid option! Use 'gb help' if you want to know the correct name")
 	end
+	cmd:Set("")
 end
 
 local function print_help()
@@ -54,7 +55,7 @@ local function print_help()
 	printc(255, 255, 255, 255, "The commands are:")
 
 	for name, props in pairs (m_commands) do
-		local str = "[ %s ] : %s"
+		local str = "%s : %s"
 		printc(200, 200, 200, 200, string.format(str, name, props.help))
 	end
 end

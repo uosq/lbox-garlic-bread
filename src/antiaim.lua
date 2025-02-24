@@ -1,6 +1,7 @@
 ---@diagnostic disable:cast-local-type
 local antiaim = {}
 
+local m_bEnabled = false
 local m_bPitchEnabled = false
 local m_realyaw, m_fakeyaw, m_realpitch, m_fakepitch = 0, 0, 0, 0
 
@@ -8,7 +9,7 @@ local m_realyaw, m_fakeyaw, m_realpitch, m_fakepitch = 0, 0, 0, 0
 function antiaim.CreateMove(usercmd)
 	if
 		not GB_GLOBALS.m_bIsAimbotShooting
-		and GB_GLOBALS.m_bAntiAimEnabled
+		and m_bEnabled
 		and usercmd.buttons & IN_ATTACK == 0
 		and not GB_GLOBALS.m_bIsStacRunning
 		and not GB_GLOBALS.m_bWarping
@@ -42,9 +43,55 @@ function antiaim.unload()
 	antiaim = nil
 end
 
+function antiaim.Draw()
+	if (not m_bEnabled) then return end
+
+	local player = entities:GetLocalPlayer()
+	if (not player or not player:IsAlive()) then return end
+
+	local origin = player:GetAbsOrigin()
+	if (not origin) then return end
+
+	local origin_screen = client.WorldToScreen(origin)
+	if (not origin_screen) then return end
+
+	local startpos = origin
+	local endpos = nil
+
+	local viewangle = engine:GetViewAngles().y
+
+	local real_yaw, fake_yaw = m_realyaw + viewangle, m_fakeyaw + viewangle
+	local real_direction, fake_direction
+	real_direction = Vector3(math.cos(math.rad(real_yaw)), math.sin(math.rad(real_yaw)))
+	fake_direction = Vector3(math.cos(math.rad(fake_yaw)), math.sin(math.rad(fake_yaw)))
+
+	endpos = origin + (fake_direction * 10)
+
+	local startpos_screen = client.WorldToScreen(startpos)
+	if (not startpos_screen) then return end
+	local endpos_screen = client.WorldToScreen(endpos)
+	if (not endpos_screen) then return end
+
+	--- fake yaw
+	draw.Color(255, 150, 150, 255)
+	draw.Line(startpos_screen[1], startpos_screen[2], endpos_screen[1], endpos_screen[2])
+
+	--- real yaw
+	draw.Color(150, 255, 150, 255)
+	endpos = origin + (real_direction * 10)
+	endpos_screen = client.WorldToScreen(endpos)
+	if (not endpos_screen) then return end
+
+	draw.Line(startpos_screen[1], startpos_screen[2], endpos_screen[1], endpos_screen[2])
+end
+
 local function cmd_toggle_aa()
-	GB_GLOBALS.m_bAntiAimEnabled = not GB_GLOBALS.m_bAntiAimEnabled
-	printc(150, 255, 150, 255, "Anti aim is now " .. (GB_GLOBALS.m_bAntiAimEnabled and "enabled" or "disabled"))
+	if (GB_GLOBALS.m_bIsStacRunning) then
+		printc(255, 0, 0, 255, "STAC is active! Won't change AA")
+		return
+	end
+	m_bEnabled = not m_bEnabled
+	printc(150, 255, 150, 255, "Anti aim is now " .. (m_bEnabled and "enabled" or "disabled"))
 end
 
 local function cmd_set_options(args)
@@ -76,7 +123,7 @@ local function cmd_toggle_pitch()
 	printc(150, 255, 150, 255, "Anti aim pitch is now " .. (m_bPitchEnabled and "enabled" or "disabled"))
 end
 
-GB_GLOBALS.RegisterCommand("antiaim->change", "Changes antiaim's settings | args: fake or real (string), yaw or pitch (string), new_value (number)", 3, cmd_set_options)
+GB_GLOBALS.RegisterCommand("antiaim->change", "Changes antiaim's settings | args: fake or real (string), yaw or pitch (string), new value (number)", 3, cmd_set_options)
 GB_GLOBALS.RegisterCommand("antiaim->toggle", "Toggles antiaim", 0, cmd_toggle_aa)
 GB_GLOBALS.RegisterCommand("antiaim->toggle_pitch", "Toggles real and fake pitch from being added to viewangles", 0, cmd_toggle_pitch)
 return antiaim

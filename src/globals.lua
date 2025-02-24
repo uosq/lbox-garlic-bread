@@ -7,8 +7,6 @@ GB_GLOBALS = {
 	m_bWarping = false,
 	m_bRecharging = false,
 
-	m_bAntiAimEnabled = false,
-
 	m_flCustomFOV = 90,
 	m_nPreAspectRatio = 0,
 	m_nAspectRatio = 1.78,

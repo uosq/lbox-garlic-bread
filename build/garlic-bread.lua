@@ -44,19 +44,18 @@ local __bundle_require, __bundle_loaded, __bundle_register, __bundle_modules = (
 end)(require)
 __bundle_register("__root", function(require, _LOADED, __bundle_register, __bundle_modules)
 require("src.globals")
+require("src.commands")
 require("src.bitbuf")
 require("src.anticheat")
-require("src.commands")
 
 local aimbot = require("src.aimbot")
 local tickshift = require("src.tickshift")
 local antiaim = require("src.antiaim")
 local visuals = require("src.visuals")
 local movement = require("src.movement")
+local chams = require("src.chams")
 
 require("src.background")
-
---aimbot:SetDebug(false)
 
 callbacks.Unregister("CreateMove", "CM garlic bread cheat aimbot")
 callbacks.Register("CreateMove", "CM garlic bread cheat aimbot", aimbot.CreateMove)
@@ -74,12 +73,20 @@ callbacks.Register("Draw", "DRAW garlic bread tick shifting", tickshift.Draw)
 
 callbacks.Unregister("CreateMove", "CM garlic bread anti aim")
 callbacks.Register("CreateMove", "CM garlic bread anti aim", antiaim.CreateMove)
+callbacks.Unregister("Draw", "DRAW garlic bread anti aim")
+callbacks.Register("Draw", "DRAW garlic bread anti aim", antiaim.Draw)
 
 callbacks.Unregister("RenderView", "RV garlic bread custom fov")
 callbacks.Register("RenderView", "RV garlic bread custom fov", visuals.CustomFOV)
 
 callbacks.Unregister("CreateMove", "CM garlic bread movement")
 callbacks.Register("CreateMove", "CM garlic bread movement", movement.CreateMove)
+
+callbacks.Unregister("CreateMove", "CM garlic bread chams")
+callbacks.Register("CreateMove", "CM garlic bread chams", chams.CreateMove)
+
+callbacks.Unregister("DrawModel", "DME garlic bread chams")
+callbacks.Register("DrawModel", "DME garlic bread chams", chams.DrawModel)
 
 callbacks.Register("Unload", "UL garlic bread unload", function()
 	antiaim.unload()
@@ -103,6 +110,424 @@ end
 callbacks.Register("CreateMove", "CM garlic bread background", Background)
 
 end)
+__bundle_register("src.chams", function(require, _LOADED, __bundle_register, __bundle_modules)
+---@class COLOR
+---@field r integer
+---@field g integer
+---@field b integer
+---@field a integer
+
+local chams_materials = {
+	flat = materials.Create(
+		"garlic bread flat chams",
+	[[
+  "UnlitGeneric"
+  {
+    $basetexture "vgui/white_additive"
+  }
+  ]]
+	),
+
+	textured = materials.Create(
+		"garlic bread textured chams",
+	[[
+  "VertexLitGeneric"
+  {
+    $basetexture "vgui/white_additive"
+  }
+  ]]
+	),
+}
+
+local m_szMaterialMode = "flat"
+
+local COLORS = {
+	RED = { 255, 200, 200, 51 },
+	BLU = { 94, 189, 224, 51 },
+
+	TARGET = { 128, 255, 0, 50 },
+	FRIEND = { 66, 245, 170, 50 },
+	BACKTRACK = { 50, 166, 168, 50 },
+	ANTIAIM = { 168, 50, 50, 50 },
+	PRIORITY = { 238, 255, 0, 50 },
+
+	LOCALPLAYER = { 156, 66, 245, 50 },
+	VIEWMODEL_ARM = { 24, 255, 0, 50 },
+
+	WEAPON_PRIMARY = { 163, 64, 90, 100 },
+	WEAPON_SECONDARY = { 74, 79, 125, 100 },
+	WEAPON_MELEE = { 255, 255, 255, 100 },
+
+	RED_HAT = { 21, 255, 0, 150 },
+	BLU_HAT = { 255, 0, 13, 150 },
+
+	SENTRY_RED = { 255, 0, 0, 150 },
+	SENTRY_BLU = { 8, 0, 255, 150 },
+
+	DISPENSER_RED = { 130, 0, 0, 150 },
+	DISPENSER_BLU = { 3, 0, 105, 150 },
+
+	TELEPORTER_RED = { 173, 31, 107, 150 },
+	TELEPORTER_BLU = { 0, 217, 255, 150 },
+
+	AMMOPACK = { 255, 255, 255, 150 },
+	HEALTHKIT = { 255, 200, 200, 255 },
+
+	MVM_MONEY = { 52, 235, 82, 150 },
+
+	RAGDOLL_RED = { 255, 150, 150, 100 },
+	RAGDOLL_BLU = { 150, 150, 255, 100 },
+
+  ORIGINAL_PLAYER = {255, 255, 255, 255},
+  ORIGINAL_VIEWMODEL = {255, 255, 255, 255},
+}
+
+local chams = {}
+
+local m_bEnabled = true
+local m_nUpdateInterval = 5
+local m_bDrawOnEnemyOnly = false
+local m_bDrawOnVisibleOnly = true
+local m_bDrawOriginalPlayerMaterial = false
+local m_bDrawOriginalViewmodelArmMaterial = false
+
+local m_bDrawOn = {
+  HEALTHPACK = true,
+  AMMOPACK = true,
+  VIEWMODEL_ARM = true,
+  PLAYERS = true,
+  SENTRIES = true,
+  DISPENSERS = true,
+  TELEPORTERS = true,
+  MONEY = true,
+  LOCALPLAYER = true,
+  ANTIAIM = true,
+  BACKTRACK = true,
+  RAGDOLLS = true,
+}
+
+---@type integer?
+local localplayer_index = nil
+
+local render = render
+local entities = entities
+local string = string
+local playerlist = playerlist
+local models = models
+
+--- used for string.find
+local WEARABLES_CLASS = "Wearable"
+local TEAM_RED --[[, TEAM_BLU <const>]] = 2 --, 3
+local SENTRY_CLASS, DISPENSER_CLASS, TELEPORTER_CLASS =
+	 "CObjectSentrygun", "CObjectDispenser", "CObjectTeleporter"
+local MVM_MONEY_CLASS = "CCurrencyPack"
+local VIEWMODEL_ARM_CLASS = "CTFViewModel"
+
+---@param r integer
+---@param g integer
+---@param b integer
+---@param a integer
+local function get_color(r, g, b, a)
+	return r / 255, g / 255, b / 255, a / 255
+end
+
+---@type table<integer, COLOR>, table<integer, COLOR>
+local entity_list_color_front, entity_list_color_back = {}, {}
+
+---@param entity Entity?
+local function get_entity_color(entity)
+	if (not entity) then return nil end
+
+	if (entity:GetIndex() == localplayer_index) then
+		return COLORS.LOCALPLAYER
+	end
+
+	if (GB_GLOBALS.m_nAimbotTarget == entity:GetIndex()) then
+		return COLORS.TARGET
+	end
+
+	if (entity:IsWeapon() and entity:IsMeleeWeapon()) then
+		return COLORS.WEAPON_MELEE
+	elseif (entity:IsWeapon() and not entity:IsMeleeWeapon()) then
+		return entity:GetLoadoutSlot() == E_LoadoutSlot.LOADOUT_POSITION_PRIMARY and COLORS.WEAPON_PRIMARY
+			 or COLORS.WEAPON_SECONDARY
+	end
+
+	local team = entity:GetTeamNumber()
+	do
+		local class = entity:GetClass() -- not entity:GetPropInt("m_PlayerClass", "m_iClass")!!
+
+		if (class == SENTRY_CLASS) then
+			return team == TEAM_RED and COLORS.SENTRY_RED or COLORS.SENTRY_BLU
+		elseif (class == DISPENSER_CLASS) then
+			return team == TEAM_RED and COLORS.DISPENSER_RED or COLORS.DISPENSER_BLU
+		elseif (class == TELEPORTER_CLASS) then
+			return team == TEAM_RED and COLORS.TELEPORTER_RED or COLORS.TELEPORTER_BLU
+		elseif (class == MVM_MONEY_CLASS) then
+			return COLORS.MVM_MONEY
+		elseif (class == VIEWMODEL_ARM_CLASS) then
+			return COLORS.VIEWMODEL_ARM
+		end
+
+		if (class and string.find(class, WEARABLES_CLASS)) then
+			return team == TEAM_RED and COLORS.RED_HAT or COLORS.BLU_HAT
+		end
+	end
+
+	do
+		local priority = playerlist.GetPriority(entity)
+		if (priority and priority <= -1) then
+			return COLORS.FRIEND
+		elseif (priority and priority >= 1) then
+			return COLORS.PRIORITY
+		end
+	end
+
+	return COLORS[team == TEAM_RED and "RED" or "BLU"]
+end
+
+
+local function update_entities()
+	collectgarbage("stop")
+
+	local me = entities:GetLocalPlayer()
+	if (not me) then return end
+
+	local localteam = me:GetTeamNumber()
+	if (not localteam) then return end
+
+	local localindex = me:GetIndex()
+
+	local max_entities = entities:GetHighestEntityIndex()
+	for i = 1, max_entities do
+		local entity = entities.GetByIndex(i)
+		if (not entity) then goto continue end
+		if (entity:IsDormant()) then goto continue end
+		if (not m_bDrawOn.LOCALPLAYER and i == localindex) then goto continue end
+		local class = entity:GetClass()
+		local team = entity:GetTeamNumber()
+
+		if (m_bDrawOnEnemyOnly and team == localteam) then goto continue end
+
+		if (m_bDrawOn.PLAYERS and entity:IsPlayer() and entity:IsAlive()) then
+			entity_list_color_back[i] = get_entity_color(entity)
+
+			local moveChild = entity:GetMoveChild()
+			while (moveChild) do
+				entity_list_color_back[moveChild:GetIndex()] = get_entity_color(moveChild)
+				moveChild = moveChild:GetMovePeer()
+			end
+		else
+			--- excluding ragdolls, they aren't alive >:)
+			if (entity:GetHealth() >= 1) then
+				if ((m_bDrawOn.SENTRIES and class == SENTRY_CLASS) or (m_bDrawOn.DISPENSERS and class == DISPENSER_CLASS)
+						 or (m_bDrawOn.TELEPORTERS and class == TELEPORTER_CLASS)) then
+					entity_list_color_back[i] = get_entity_color(entity)
+					goto continue
+				end
+
+				if (m_bDrawOn.MONEY and class == MVM_MONEY_CLASS) then
+					entity_list_color_back[i] = get_entity_color(entity)
+					goto continue
+				end
+
+				--- medkit, ammopack
+				if ((m_bDrawOn.AMMOPACK or m_bDrawOn.HEALTHPACK) and class == "CBaseAnimating") then
+					local model = entity:GetModel()
+					if (not model) then goto continue end
+
+					local model_name = string.lower(models.GetModelName(model))
+					if (not model_name) then goto continue end
+
+					if (m_bDrawOn.AMMOPACK and string.find(model_name, "ammo")) then
+						entity_list_color_back[i] = COLORS.AMMOPACK
+					elseif (m_bDrawOn.HEALTHPACK and (string.find(model_name, "health") or string.find(model_name, "medkit"))) then
+						entity_list_color_back[i] = COLORS.HEALTHKIT
+					end
+
+					goto continue
+				end
+			end
+
+			if (m_bDrawOn.RAGDOLLS and (class == "CTFRagdoll" or class == "CRagdollProp" or class == "CRagdollPropAttached")) then
+				entity_list_color_back[i] = entity:GetPropInt("m_iTeam") == TEAM_RED and COLORS.RAGDOLL_RED or
+					 COLORS.RAGDOLL_BLU
+				goto continue
+			end
+		end
+		::continue::
+	end
+
+	--- lol viewmodel is not in entity list
+	if (m_bDrawOn.VIEWMODEL_ARM) then
+		local viewmodel = me:GetPropEntity("m_hViewModel[0]")
+		if (viewmodel) then
+			entity_list_color_back[viewmodel:GetIndex()] = get_entity_color(viewmodel)
+		end
+	end
+
+	entity_list_color_front, entity_list_color_back = entity_list_color_back, entity_list_color_front
+	collectgarbage("restart")
+end
+
+---@param usercmd UserCmd
+function chams.CreateMove(usercmd)
+  if (m_bEnabled and (usercmd.tick_count % m_nUpdateInterval) == 0) then
+    update_entities()
+  end
+end
+
+---@param bool boolean
+local function DEPTHOVERRIDE(bool)
+  render.OverrideDepthEnable(bool, bool)
+end
+
+--- For AntiAim and Backtrack indicators
+---@param context DrawModelContext
+---@param material Material
+---@param color COLOR
+local function ChangeMaterialForIndicators(context, material, color)
+	local r, g, b, a = get_color(table.unpack(color))
+	context:SetAlphaModulation(a)
+	context:ForcedMaterialOverride(material)
+	context:SetColorModulation(r, g, b)
+
+	DEPTHOVERRIDE(true)
+	context:DepthRange(0, 0.2)
+	context:Execute()
+	context:DepthRange(0, 1)
+	DEPTHOVERRIDE(false)
+end
+
+---@param context DrawModelContext
+function chams.DrawModel(context)
+  if (not m_bEnabled) then return end
+
+	local material = chams_materials[m_szMaterialMode]
+	if (not material) then return end
+
+	local drawing_backtrack, drawing_antiaim = context:IsDrawingBackTrack(), context:IsDrawingAntiAim()
+	if (drawing_antiaim or drawing_backtrack) then
+		if ((drawing_antiaim and m_bDrawOn.ANTIAIM) or (drawing_backtrack and m_bDrawOn.BACKTRACK)) then
+			local color = (drawing_antiaim and COLORS.ANTIAIM or COLORS.BACKTRACK)
+			ChangeMaterialForIndicators(context, material, color)
+		end
+		return
+	end
+
+	local entity = context:GetEntity()
+	if (not entity) then return end
+	local index = entity:GetIndex()
+	local class = entity:GetClass()
+	if (not index or not class) then return end
+	if (not entity_list_color_front[index]) then return end
+
+	local color = entity_list_color_front[index]
+	if (not color) then return end
+
+	if ((m_bDrawOriginalPlayerMaterial and class == "CTFPlayer")
+			 or (class == VIEWMODEL_ARM_CLASS and m_bDrawOriginalViewmodelArmMaterial)) then
+		--- draw the original material
+    if (class == VIEWMODEL_ARM_CLASS) then
+      local r, g, b, a = get_color(table.unpack(COLORS.ORIGINAL_VIEWMODEL))
+      context:SetColorModulation(r, g, b)
+      context:SetAlphaModulation(a)
+    elseif (class == "CTFPlayer") then
+      local r, g, b, a = get_color(table.unpack(COLORS.ORIGINAL_PLAYER))
+      context:SetColorModulation(r, g, b)
+      context:SetAlphaModulation(a)
+    end
+		context:Execute()
+	end
+
+	DEPTHOVERRIDE(true)
+	local r, g, b, a = get_color(table.unpack(color))
+	context:SetAlphaModulation(a)
+	context:ForcedMaterialOverride(material)
+	context:SetColorModulation(r, g, b)
+
+	if (not m_bDrawOnVisibleOnly) then
+		context:DepthRange(0, (class == VIEWMODEL_ARM_CLASS and 0.1 or 0.2))
+	end
+
+	context:Execute()
+
+	--- resetting stuff
+	context:DepthRange(0, 1)
+	-- why no leak? wtf
+	--context:SetColorModulation(get_color(255, 255, 255, 255))
+	--context:SetAlphaModulation(1)
+	DEPTHOVERRIDE(false)
+end
+
+local function CMD_ToggleChams()
+  m_bEnabled = not m_bEnabled
+end
+
+local function CMD_ChangeMaterialMode(args)
+  if (not args or #args == 0 or not args[1]) then return end
+
+  local name = tostring(args[1])
+  if (not name) then return end
+
+  m_szMaterialMode = name
+end
+
+local function CMD_ChangeColor(args, num_args)
+  if (not args or #args == 0 or #args ~= num_args) then return end
+
+  local selected_key = string.upper( table.remove(args, 1) )
+
+  local r, g, b, a = table.unpack(args)
+  if (not (r or g or b or a)) then return end
+
+  r, g, b, a = tonumber(r), tonumber(g), tonumber(b), tonumber(a)
+  COLORS[selected_key] = {r, g, b, a}
+end
+
+local function CMD_ToggleVisibleOnly()
+  m_bDrawOnVisibleOnly = not m_bDrawOnVisibleOnly
+  printc(150, 255, 150, 255, "Chams will draw only on " .. (m_bDrawOnVisibleOnly and "visible" or "invisible") .. " entities")
+end
+
+local function CMD_ToggleDrawOriginalPlayerMat()
+  m_bDrawOriginalPlayerMaterial = not m_bDrawOriginalPlayerMaterial
+  printc(150, 255, 150, 255, "Chams will " .. (m_bDrawOriginalPlayerMaterial and "draw" or "not draw") .. " the original player material")
+end
+
+local function CMD_ToggleDrawOriginalViewmodelMat()
+  m_bDrawOriginalViewmodelArmMaterial = not m_bDrawOriginalViewmodelArmMaterial
+  printc(150, 255, 150, 255, "Chams will " .. (m_bDrawOriginalViewmodelArmMaterial and "draw" or "not draw") .. " the original viewmodel material")
+end
+
+local function CMD_ToggleDrawOnEnemyOnly()
+  m_bDrawOnEnemyOnly = not m_bDrawOnEnemyOnly
+  printc(150, 255, 150, 255, "Chams will " .. (m_bDrawOnEnemyOnly and "draw" or "not draw") .. " only the enemies")
+end
+
+local function CMD_SetUpdateInterval(args, num_args)
+  if (not args or #args ~= num_args) then return end
+  local new_value = tonumber(args[1])
+  if (new_value <= 0) then printc(255, 0, 0, 255, "The new value must be at least 1!") return end
+
+  m_nUpdateInterval = new_value
+
+  if (new_value < 3) then
+    printc(252, 186, 3, 255, "Values below 3 are not worth it, I would recommend using 3 or more", "This is just a warning, the interval was still changed")
+  end
+end
+
+GB_GLOBALS.RegisterCommand("chams->toggle", "Toggles chams", 0, CMD_ToggleChams)
+GB_GLOBALS.RegisterCommand("chams->material", "Changes chams material | args: material mode (flat or textured)", 1, CMD_ChangeMaterialMode)
+GB_GLOBALS.RegisterCommand("chams->change_color", "Changes the selected color on chams | args: color (string), r, g, b, a (numbers) | example: chams->change_color viewmodeel_arm 150 255 150 255", 5, CMD_ChangeColor)
+GB_GLOBALS.RegisterCommand("chams->toggle_visible_only", "Makes chams only draw on visible entities", 0, CMD_ToggleVisibleOnly)
+GB_GLOBALS.RegisterCommand("chams->toggle_original_player_mat", "Toggles chams drawing the original player material", 0, CMD_ToggleDrawOriginalPlayerMat)
+GB_GLOBALS.RegisterCommand("chams->toggle_enemy_only", "Toggles chams drawing on only enemies or not", 0, CMD_ToggleDrawOnEnemyOnly)
+GB_GLOBALS.RegisterCommand("chams->toggle_original_viewmodel_mat", "Toggles chams drawing the original viewmodel material", 0, CMD_ToggleDrawOriginalViewmodelMat)
+GB_GLOBALS.RegisterCommand("chams->set_update_interval", "Changes the entity update interval | args new value (number)", 1, CMD_SetUpdateInterval)
+return chams
+
+end)
 __bundle_register("src.movement", function(require, _LOADED, __bundle_register, __bundle_modules)
 local movement = {}
 
@@ -122,8 +547,6 @@ local function CreateMove(usercmd)
 	end
 end
 
-movement.CreateMove = CreateMove
-
 local function cmd_ToggleBhop()
 	GB_GLOBALS.m_bBhopEnabled = not GB_GLOBALS.m_bBhopEnabled
 	printc(150, 255, 150, 255, "Bhop is now " .. (GB_GLOBALS.m_bBhopEnabled and "enabled" or "disabled"))
@@ -131,6 +554,7 @@ end
 
 GB_GLOBALS.RegisterCommand("misc->toggle_bhop", "Toggles bunny hopping", 0, cmd_ToggleBhop)
 
+movement.CreateMove = CreateMove
 return movement
 
 end)
@@ -180,6 +604,7 @@ __bundle_register("src.antiaim", function(require, _LOADED, __bundle_register, _
 ---@diagnostic disable:cast-local-type
 local antiaim = {}
 
+local m_bEnabled = false
 local m_bPitchEnabled = false
 local m_realyaw, m_fakeyaw, m_realpitch, m_fakepitch = 0, 0, 0, 0
 
@@ -187,7 +612,7 @@ local m_realyaw, m_fakeyaw, m_realpitch, m_fakepitch = 0, 0, 0, 0
 function antiaim.CreateMove(usercmd)
 	if
 		not GB_GLOBALS.m_bIsAimbotShooting
-		and GB_GLOBALS.m_bAntiAimEnabled
+		and m_bEnabled
 		and usercmd.buttons & IN_ATTACK == 0
 		and not GB_GLOBALS.m_bIsStacRunning
 		and not GB_GLOBALS.m_bWarping
@@ -221,9 +646,55 @@ function antiaim.unload()
 	antiaim = nil
 end
 
+function antiaim.Draw()
+	if (not m_bEnabled) then return end
+
+	local player = entities:GetLocalPlayer()
+	if (not player or not player:IsAlive()) then return end
+
+	local origin = player:GetAbsOrigin()
+	if (not origin) then return end
+
+	local origin_screen = client.WorldToScreen(origin)
+	if (not origin_screen) then return end
+
+	local startpos = origin
+	local endpos = nil
+
+	local viewangle = engine:GetViewAngles().y
+
+	local real_yaw, fake_yaw = m_realyaw + viewangle, m_fakeyaw + viewangle
+	local real_direction, fake_direction
+	real_direction = Vector3(math.cos(math.rad(real_yaw)), math.sin(math.rad(real_yaw)))
+	fake_direction = Vector3(math.cos(math.rad(fake_yaw)), math.sin(math.rad(fake_yaw)))
+
+	endpos = origin + (fake_direction * 10)
+
+	local startpos_screen = client.WorldToScreen(startpos)
+	if (not startpos_screen) then return end
+	local endpos_screen = client.WorldToScreen(endpos)
+	if (not endpos_screen) then return end
+
+	--- fake yaw
+	draw.Color(255, 150, 150, 255)
+	draw.Line(startpos_screen[1], startpos_screen[2], endpos_screen[1], endpos_screen[2])
+
+	--- real yaw
+	draw.Color(150, 255, 150, 255)
+	endpos = origin + (real_direction * 10)
+	endpos_screen = client.WorldToScreen(endpos)
+	if (not endpos_screen) then return end
+
+	draw.Line(startpos_screen[1], startpos_screen[2], endpos_screen[1], endpos_screen[2])
+end
+
 local function cmd_toggle_aa()
-	GB_GLOBALS.m_bAntiAimEnabled = not GB_GLOBALS.m_bAntiAimEnabled
-	printc(150, 255, 150, 255, "Anti aim is now " .. (GB_GLOBALS.m_bAntiAimEnabled and "enabled" or "disabled"))
+	if (GB_GLOBALS.m_bIsStacRunning) then
+		printc(255, 0, 0, 255, "STAC is active! Won't change AA")
+		return
+	end
+	m_bEnabled = not m_bEnabled
+	printc(150, 255, 150, 255, "Anti aim is now " .. (m_bEnabled and "enabled" or "disabled"))
 end
 
 local function cmd_set_options(args)
@@ -255,7 +726,7 @@ local function cmd_toggle_pitch()
 	printc(150, 255, 150, 255, "Anti aim pitch is now " .. (m_bPitchEnabled and "enabled" or "disabled"))
 end
 
-GB_GLOBALS.RegisterCommand("antiaim->change", "Changes antiaim's settings | args: fake or real (string), yaw or pitch (string), new_value (number)", 3, cmd_set_options)
+GB_GLOBALS.RegisterCommand("antiaim->change", "Changes antiaim's settings | args: fake or real (string), yaw or pitch (string), new value (number)", 3, cmd_set_options)
 GB_GLOBALS.RegisterCommand("antiaim->toggle", "Toggles antiaim", 0, cmd_toggle_aa)
 GB_GLOBALS.RegisterCommand("antiaim->toggle_pitch", "Toggles real and fake pitch from being added to viewangles", 0, cmd_toggle_pitch)
 return antiaim
@@ -282,28 +753,6 @@ local font = draw.CreateFont("TF2 BUILD", 16, 1000)
 ---@type number, boolean
 local m_localplayer_speed, m_bIsRED
 m_bIsRED = false
-
-local function clc_Move()
-	local moveMsg = { m_nNewCommands = 2, m_nBackupCommands = 1, buffer = BitBuffer() }
-
-	setmetatable(moveMsg, {
-		__close = function(this)
-			this.m_nBackupCommands = nil
-			this.m_nNewCommands = nil
-			this.buffer:Delete()
-			this.buffer = nil
-		end,
-	})
-
-	function moveMsg:init()
-		self.buffer:Reset()
-		self.buffer:WriteInt(self.m_nNewCommands, NEW_COMMANDS_SIZE)
-		self.buffer:WriteInt(self.m_nBackupCommands, BACKUP_COMMANDS_SIZE)
-		self.buffer:Reset()
-	end
-
-	return moveMsg
-end
 
 local m_settings = {
 	warp = {
@@ -562,9 +1011,10 @@ local settings = {
 	key = E_ButtonCode.KEY_LSHIFT,
 	autoshoot = true,
 	mode = aimbot_mode.silent,
-	lock_aim = false,
+	lock_aim = true,
 	smooth_value = 10, --- lower value, smoother aimbot (10 = very smooth, 100 = basically plain aimbot)
 	melee_rage = false,
+	auto_spinup = true,
 
 	--- should aimbot run when using one of them?
 	hitscan = true,
@@ -747,7 +1197,7 @@ local function RunMelee(usercmd)
 	if weapon and weapon:IsMeleeWeapon() then
 		local swing_trace = weapon:DoSwingTrace()
 
-		if swing_trace and swing_trace.entity and swing_trace.fraction >= 0.95 then
+		if swing_trace and swing_trace.entity and swing_trace.fraction <= 0.95 then
 			local entity = swing_trace.entity
 			local entity_team = entity:GetTeamNumber()
 			local index = entity:GetIndex()
@@ -797,7 +1247,6 @@ local function CreateMove(usercmd)
 	weapon = localplayer:GetPropEntity("m_hActiveWeapon")
 	if not weapon then return end
 
-
 	if not input.IsButtonDown(settings.key) then return end
 	if engine.IsChatOpen() or engine.Con_IsVisible() or engine.IsGameUIVisible() then return end
 
@@ -806,6 +1255,8 @@ local function CreateMove(usercmd)
 		RunMelee(usercmd)
 		return
 	end
+
+	if (weapon:GetPropInt("LocalWeaponData", "m_iClip1") == 0) then return end
 
 	--- try to make stac dont ban us :3
 	local m_AimbotMode = GB_GLOBALS.m_bIsStacRunning and aimbot_mode.smooth or settings.mode
@@ -943,7 +1394,7 @@ local function CreateMove(usercmd)
 		CheckBuilding(Teleporters)
 	end
 
-	local can_shoot = CanWeaponShoot() -- if autoshoot is off and player is trying to shoot, we aim for them
+	local can_shoot = CanWeaponShoot() or settings.lock_aim -- if autoshoot is off and player is trying to shoot, we aim for them
 
 	if best_angle then
 		local smoothed = engine:GetViewAngles() + vecMultiply(best_angle, (m_SmoothValue * 0.01 --[[/100]]))
@@ -966,10 +1417,15 @@ local function CreateMove(usercmd)
 				if looking_at_target then
 					usercmd.buttons = usercmd.buttons | IN_ATTACK
 				end
+
 			end
 			GB_GLOBALS.m_bIsAimbotShooting = true
 			GB_GLOBALS.m_nAimbotTarget = target
 		end
+	end
+
+	if (settings.auto_spinup and weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_MINIGUN and usercmd.buttons & IN_ATTACK == 0) then
+		usercmd.buttons = usercmd.buttons | IN_ATTACK2
 	end
 end
 
@@ -981,46 +1437,27 @@ local function FrameStageNotify(stage)
 end
 
 local function Draw()
-	--radius = std::tan( math::to_rad( fov * 0.5f ) * 2.f ) / g_draw.get_screen_fov( ) * ( g_draw.width( ) * 0.5f );
-	--local radius = math.tan(math.rad(settings.fov))
-	--/ math.tan(
-	--math.rad(GB_GLOBALS.m_flCustomFOV)--[[(GB_GLOBALS.m_nAspectRatio == 0 and GB_GLOBALS.m_nPreAspectRatio or GB_GLOBALS.m_nAspectRatio)]]
-	--* (width * 0.5)
-	--)
-
-	--[[
-	local radius = (math.tan(math.rad(settings.fov / 2)) / math.tan(math.rad(GB_GLOBALS.m_flCustomFOV / 2)))
-		* (width * 0.5)]]
-
-	--[[
-	local radius = (
-		math.tan(math.rad(settings.fov / RADPI)) / math.tan((math.rad(GB_GLOBALS.m_flCustomFOV) / 2) / RADPI)
-	) * (width * 0.5)
-	--* (GB_GLOBALS.m_nAspectRatio == 0 and GB_GLOBALS.m_nPreAspectRatio or GB_GLOBALS.m_nAspectRatio)]]
+	if (engine:IsGameUIVisible() or engine:Con_IsVisible()) then return end
 
 	if localplayer and localplayer:IsAlive() and settings.fov <= 89 then
-		local aspect_ratio = (
-			GB_GLOBALS.m_nAspectRatio == 0 and GB_GLOBALS.m_nPreAspectRatio or GB_GLOBALS.m_nAspectRatio
-		)
-		local fov = localplayer:InCond(E_TFCOND.TFCond_Zoomed) and 20 or GB_GLOBALS.m_flCustomFOV
-		-- i just gave up and pasted amalgam's draw fov
-		local radius = math.tan(math.rad(settings.fov)) / math.tan(math.rad(fov) / 2) * width * (4 / 6) / aspect_ratio
-		--- and its still fucking not accurate, ig im calculating fov on aimbot wrong
+		 -- Get base FOV considering scope state
+		 local base_fov = localplayer:InCond(E_TFCOND.TFCond_Zoomed) and 20 or GB_GLOBALS.m_flCustomFOV
+		 
+		 -- Convert FOVs to distances at a normalized screen width
+		 local screen_distance = (width / 2) / math.tan(math.rad(base_fov / 2))
+		 local circle_radius = screen_distance * math.tan(math.rad(settings.fov / 2))
+		 
+		 -- Scale the radius to screen coordinates
+		 local scaled_radius = (circle_radius / screen_distance) * (width / 2)
 
-		--[[
-  1.33 -- radius
-  1.78 -- y
-  1.33y = radius*1.78
-  y = (radius*aspect_ratio)/1.33
-  --]]
+		 -- Draw the circle with appropriate color
+		 if GB_GLOBALS.m_nAimbotTarget then
+			  draw.Color(150, 255, 150, 255)
+		 else
+			  draw.Color(255, 255, 255, 255)
+		 end
 
-		draw.Color(255, 255, 255, 255)
-		draw.OutlinedCircle(
-			math.floor(width * 0.5),
-			math.floor(height * 0.5),
-			math.floor((radius * aspect_ratio) / 1.33),
-			64
-		)
+		 draw.OutlinedCircle(math.floor(width * 0.5), math.floor(height * 0.5), math.floor(scaled_radius), 64)
 	end
 end
 
@@ -1058,10 +1495,16 @@ local function cmd_ChangeAimbotIgnore(args)
 	printc(150, 255, 150, 255, "Aimbot is now " .. ignoring .. " " .. option)
 end
 
+local function cmd_ToggleAimLock()
+	settings.lock_aim = not settings.lock_aim
+	printc(150, 255, 150, 255, "Aim lock is now " .. (settings.lock_aim and "enabled" or "disabled"))
+end
+
 GB_GLOBALS.RegisterCommand("aimbot->change_mode", "Change aimbot mode | args: mode (plain, smooth or silent)", 1, cmd_ChangeAimbotMode)
 GB_GLOBALS.RegisterCommand("aimbot->change_key", "Changes aimbot key | args: key (w, f, g, ...)", 1, cmd_ChangeAimbotKey)
 GB_GLOBALS.RegisterCommand("aimbot->change_fov", "Changes aimbot fov | args: fov (number)", 1, cmd_ChangeAimbotFov)
 GB_GLOBALS.RegisterCommand("aimbot->ignore->toggle", "Toggles a aimbot ignore option | args: option name (string)", 1, cmd_ChangeAimbotIgnore)
+GB_GLOBALS.RegisterCommand("aimbot->aimlock_toggle", "Makes the aimbot not stop looking at the targe when shooting", 0, cmd_ToggleAimLock)
 
 local aimbot = {}
 aimbot.CreateMove = CreateMove
@@ -1235,81 +1678,14 @@ local CLASS_HITBOXES = {
 return CLASS_HITBOXES
 
 end)
-__bundle_register("src.commands", function(require, _LOADED, __bundle_register, __bundle_modules)
-local m_commands = {}
-local m_prefix = "gb"
-
---[[
-	gb command args
-]]
-
---- If no additional param other than cmdname, the command has no args
----@param cmdname string
----@param help string
----@param num_args integer
----@param func function?
-local function RegisterCommand(cmdname, help, num_args, func)
-	m_commands[cmdname] = {func = func, help = help, num_args = num_args}
-end
-
----@param cmd StringCmd
-local function SendStringCmd(cmd)
-	local sent_command = cmd:Get()
-	local words = {}
-	for word in string.gmatch(sent_command, "%S+") do
-		words[#words + 1] = word
-	end
-
-	if (words[1] ~= m_prefix) then return end
-	--- remove prefix
-	table.remove(words, 1)
-
-	if (m_commands[words[1]]) then
-		--local command = m_commands[words[1]] -- command.func, [...]: any
-		local command = m_commands[words[1]]
-		table.remove(words, 1)
-
-		local func = command.func
-		assert(type(func) == "function", "SendStringCmd -> command.func is not a function! wtf")
-
-		local num_args = command.num_args
-		assert(type(num_args) == "number", "SendStringCmd -> command.num_args is not a number! wtf")
-
-		local args = {}
-		for i = 1, num_args do
-			local arg = tostring(words[i])
-			args[i] = arg
-		end
-
-		func(args)
-
-		cmd:Set("")
-	end
-end
-
-local function print_help()
-	printc(255, 150, 150, 255, "Stac is " .. (GB_GLOBALS.m_bIsStacRunning and "detected" or "not running") .. " in this server")
-	printc(255, 255, 255, 255, "The commands are:")
-
-	for name, props in pairs (m_commands) do
-		local str = "[ %s ] : %s"
-		printc(200, 200, 200, 200, string.format(str, name, props.help))
-	end
-end
-
-RegisterCommand("help", "prints all command's description and usage", 0, print_help)
-
-printc(255, 255, 255, 255, "You can use 'gb help' command to print all the console commands")
-
-GB_GLOBALS.RegisterCommand = RegisterCommand
-callbacks.Register("SendStringCmd", "SSC garlic bread console commands", SendStringCmd)
-end)
 __bundle_register("src.anticheat", function(require, _LOADED, __bundle_register, __bundle_modules)
 local clc_RespondCvarValue = 13
 local SIGNONSTATE_TYPE = 6
+local m_bEnabled = true
 
 ---@param msg NetMessage
 local function AntiCheat(msg)
+	if (not m_bEnabled) then return true end
 	if msg:GetType() == SIGNONSTATE_TYPE and clientstate:GetClientSignonState() == E_SignonState.SIGNONSTATE_NONE then
 		GB_GLOBALS.m_bIsStacRunning = false
 	end
@@ -1325,6 +1701,13 @@ end
 
 callbacks.Register("SendNetMsg", "NETMSG garlic bread stac detector", AntiCheat)
 
+local function CMD_Toggle()
+	m_bEnabled = not m_bEnabled
+	if (not m_bEnabled) then GB_GLOBALS.m_bIsStacRunning = false end
+	printc(255, 0, 0, 255, "STAC checker is " .. (m_bEnabled and "enabled" or "disabled"))
+end
+
+GB_GLOBALS.RegisterCommand("anticheat->toggle_stac_check", "Toggles the stac checker, so we can gamble if the server has STAC :smile:", 0,  CMD_Toggle)
 end)
 __bundle_register("src.bitbuf", function(require, _LOADED, __bundle_register, __bundle_modules)
 ---@diagnostic disable: duplicate-set-field
@@ -1414,6 +1797,76 @@ function CLC_Move:ReadFromBitBuffer(buffer)
 end
 
 end)
+__bundle_register("src.commands", function(require, _LOADED, __bundle_register, __bundle_modules)
+local m_commands = {}
+local m_prefix = "gb"
+
+--[[
+	gb command args
+]]
+
+--- If no additional param other than cmdname, the command has no args
+---@param cmdname string
+---@param help string
+---@param num_args integer
+---@param func function?
+local function RegisterCommand(cmdname, help, num_args, func)
+	m_commands[cmdname] = {func = func, help = help, num_args = num_args}
+end
+
+---@param cmd StringCmd
+local function SendStringCmd(cmd)
+	local sent_command = cmd:Get()
+	local words = {}
+	for word in string.gmatch(sent_command, "%S+") do
+		words[#words + 1] = word
+	end
+
+	if (words[1] ~= m_prefix) then return end
+	--- remove prefix
+	table.remove(words, 1)
+
+	if (m_commands[words[1]]) then
+		local command = m_commands[words[1]]
+		table.remove(words, 1)
+
+		local func = command.func
+		assert(type(func) == "function", "SendStringCmd -> command.func is not a function! wtf")
+
+		local num_args = command.num_args
+		assert(type(num_args) == "number", "SendStringCmd -> command.num_args is not a number! wtf")
+
+		local args = {}
+		for i = 1, num_args do
+			local arg = tostring(words[i])
+			args[i] = arg
+		end
+
+		func(args, num_args)
+
+	else
+		printc(171, 160, 2, 255, "Invalid option! Use 'gb help' if you want to know the correct name")
+	end
+	cmd:Set("")
+end
+
+local function print_help()
+	printc(255, 150, 150, 255, "Stac is " .. (GB_GLOBALS.m_bIsStacRunning and "detected" or "not running") .. " in this server")
+	printc(255, 255, 255, 255, "The commands are:")
+
+	for name, props in pairs (m_commands) do
+		local str = "%s : %s"
+		printc(200, 200, 200, 200, string.format(str, name, props.help))
+	end
+end
+
+RegisterCommand("help", "prints all command's description and usage", 0, print_help)
+
+printc(255, 255, 255, 255, "You can use 'gb help' command to print all the console commands")
+
+GB_GLOBALS.RegisterCommand = RegisterCommand
+callbacks.Register("SendStringCmd", "SSC garlic bread console commands", SendStringCmd)
+end)
 __bundle_register("src.globals", function(require, _LOADED, __bundle_register, __bundle_modules)
 GB_GLOBALS = {
 	m_bIsStacRunning = false,
@@ -1423,8 +1876,6 @@ GB_GLOBALS = {
 
 	m_bWarping = false,
 	m_bRecharging = false,
-
-	m_bAntiAimEnabled = false,
 
 	m_flCustomFOV = 90,
 	m_nPreAspectRatio = 0,

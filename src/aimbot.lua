@@ -5,9 +5,10 @@ local settings = {
 	key = E_ButtonCode.KEY_LSHIFT,
 	autoshoot = true,
 	mode = aimbot_mode.silent,
-	lock_aim = false,
+	lock_aim = true,
 	smooth_value = 10, --- lower value, smoother aimbot (10 = very smooth, 100 = basically plain aimbot)
 	melee_rage = false,
+	auto_spinup = true,
 
 	--- should aimbot run when using one of them?
 	hitscan = true,
@@ -190,7 +191,7 @@ local function RunMelee(usercmd)
 	if weapon and weapon:IsMeleeWeapon() then
 		local swing_trace = weapon:DoSwingTrace()
 
-		if swing_trace and swing_trace.entity and swing_trace.fraction >= 0.95 then
+		if swing_trace and swing_trace.entity and swing_trace.fraction <= 0.95 then
 			local entity = swing_trace.entity
 			local entity_team = entity:GetTeamNumber()
 			local index = entity:GetIndex()
@@ -240,7 +241,6 @@ local function CreateMove(usercmd)
 	weapon = localplayer:GetPropEntity("m_hActiveWeapon")
 	if not weapon then return end
 
-
 	if not input.IsButtonDown(settings.key) then return end
 	if engine.IsChatOpen() or engine.Con_IsVisible() or engine.IsGameUIVisible() then return end
 
@@ -249,6 +249,8 @@ local function CreateMove(usercmd)
 		RunMelee(usercmd)
 		return
 	end
+
+	if (weapon:GetPropInt("LocalWeaponData", "m_iClip1") == 0) then return end
 
 	--- try to make stac dont ban us :3
 	local m_AimbotMode = GB_GLOBALS.m_bIsStacRunning and aimbot_mode.smooth or settings.mode
@@ -386,7 +388,7 @@ local function CreateMove(usercmd)
 		CheckBuilding(Teleporters)
 	end
 
-	local can_shoot = CanWeaponShoot() -- if autoshoot is off and player is trying to shoot, we aim for them
+	local can_shoot = CanWeaponShoot() or settings.lock_aim -- if autoshoot is off and player is trying to shoot, we aim for them
 
 	if best_angle then
 		local smoothed = engine:GetViewAngles() + vecMultiply(best_angle, (m_SmoothValue * 0.01 --[[/100]]))
@@ -409,10 +411,15 @@ local function CreateMove(usercmd)
 				if looking_at_target then
 					usercmd.buttons = usercmd.buttons | IN_ATTACK
 				end
+
 			end
 			GB_GLOBALS.m_bIsAimbotShooting = true
 			GB_GLOBALS.m_nAimbotTarget = target
 		end
+	end
+
+	if (settings.auto_spinup and weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_MINIGUN and usercmd.buttons & IN_ATTACK == 0) then
+		usercmd.buttons = usercmd.buttons | IN_ATTACK2
 	end
 end
 
@@ -424,46 +431,27 @@ local function FrameStageNotify(stage)
 end
 
 local function Draw()
-	--radius = std::tan( math::to_rad( fov * 0.5f ) * 2.f ) / g_draw.get_screen_fov( ) * ( g_draw.width( ) * 0.5f );
-	--local radius = math.tan(math.rad(settings.fov))
-	--/ math.tan(
-	--math.rad(GB_GLOBALS.m_flCustomFOV)--[[(GB_GLOBALS.m_nAspectRatio == 0 and GB_GLOBALS.m_nPreAspectRatio or GB_GLOBALS.m_nAspectRatio)]]
-	--* (width * 0.5)
-	--)
-
-	--[[
-	local radius = (math.tan(math.rad(settings.fov / 2)) / math.tan(math.rad(GB_GLOBALS.m_flCustomFOV / 2)))
-		* (width * 0.5)]]
-
-	--[[
-	local radius = (
-		math.tan(math.rad(settings.fov / RADPI)) / math.tan((math.rad(GB_GLOBALS.m_flCustomFOV) / 2) / RADPI)
-	) * (width * 0.5)
-	--* (GB_GLOBALS.m_nAspectRatio == 0 and GB_GLOBALS.m_nPreAspectRatio or GB_GLOBALS.m_nAspectRatio)]]
+	if (engine:IsGameUIVisible() or engine:Con_IsVisible()) then return end
 
 	if localplayer and localplayer:IsAlive() and settings.fov <= 89 then
-		local aspect_ratio = (
-			GB_GLOBALS.m_nAspectRatio == 0 and GB_GLOBALS.m_nPreAspectRatio or GB_GLOBALS.m_nAspectRatio
-		)
-		local fov = localplayer:InCond(E_TFCOND.TFCond_Zoomed) and 20 or GB_GLOBALS.m_flCustomFOV
-		-- i just gave up and pasted amalgam's draw fov
-		local radius = math.tan(math.rad(settings.fov)) / math.tan(math.rad(fov) / 2) * width * (4 / 6) / aspect_ratio
-		--- and its still fucking not accurate, ig im calculating fov on aimbot wrong
+		 -- Get base FOV considering scope state
+		 local base_fov = localplayer:InCond(E_TFCOND.TFCond_Zoomed) and 20 or GB_GLOBALS.m_flCustomFOV
+		 
+		 -- Convert FOVs to distances at a normalized screen width
+		 local screen_distance = (width / 2) / math.tan(math.rad(base_fov / 2))
+		 local circle_radius = screen_distance * math.tan(math.rad(settings.fov / 2))
+		 
+		 -- Scale the radius to screen coordinates
+		 local scaled_radius = (circle_radius / screen_distance) * (width / 2)
 
-		--[[
-  1.33 -- radius
-  1.78 -- y
-  1.33y = radius*1.78
-  y = (radius*aspect_ratio)/1.33
-  --]]
+		 -- Draw the circle with appropriate color
+		 if GB_GLOBALS.m_nAimbotTarget then
+			  draw.Color(150, 255, 150, 255)
+		 else
+			  draw.Color(255, 255, 255, 255)
+		 end
 
-		draw.Color(255, 255, 255, 255)
-		draw.OutlinedCircle(
-			math.floor(width * 0.5),
-			math.floor(height * 0.5),
-			math.floor((radius * aspect_ratio) / 1.33),
-			64
-		)
+		 draw.OutlinedCircle(math.floor(width * 0.5), math.floor(height * 0.5), math.floor(scaled_radius), 64)
 	end
 end
 
@@ -501,10 +489,16 @@ local function cmd_ChangeAimbotIgnore(args)
 	printc(150, 255, 150, 255, "Aimbot is now " .. ignoring .. " " .. option)
 end
 
+local function cmd_ToggleAimLock()
+	settings.lock_aim = not settings.lock_aim
+	printc(150, 255, 150, 255, "Aim lock is now " .. (settings.lock_aim and "enabled" or "disabled"))
+end
+
 GB_GLOBALS.RegisterCommand("aimbot->change_mode", "Change aimbot mode | args: mode (plain, smooth or silent)", 1, cmd_ChangeAimbotMode)
 GB_GLOBALS.RegisterCommand("aimbot->change_key", "Changes aimbot key | args: key (w, f, g, ...)", 1, cmd_ChangeAimbotKey)
 GB_GLOBALS.RegisterCommand("aimbot->change_fov", "Changes aimbot fov | args: fov (number)", 1, cmd_ChangeAimbotFov)
 GB_GLOBALS.RegisterCommand("aimbot->ignore->toggle", "Toggles a aimbot ignore option | args: option name (string)", 1, cmd_ChangeAimbotIgnore)
+GB_GLOBALS.RegisterCommand("aimbot->aimlock_toggle", "Makes the aimbot not stop looking at the targe when shooting", 0, cmd_ToggleAimLock)
 
 local aimbot = {}
 aimbot.CreateMove = CreateMove

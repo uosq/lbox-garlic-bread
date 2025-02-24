@@ -16,8 +16,6 @@ local function CreateMove(usercmd)
 	end
 end
 
-movement.CreateMove = CreateMove
-
 local function cmd_ToggleBhop()
 	GB_GLOBALS.m_bBhopEnabled = not GB_GLOBALS.m_bBhopEnabled
 	printc(150, 255, 150, 255, "Bhop is now " .. (GB_GLOBALS.m_bBhopEnabled and "enabled" or "disabled"))
@@ -25,4 +23,5 @@ end
 
 GB_GLOBALS.RegisterCommand("misc->toggle_bhop", "Toggles bunny hopping", 0, cmd_ToggleBhop)
 
+movement.CreateMove = CreateMove
 return movement

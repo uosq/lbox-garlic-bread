@@ -1,17 +1,16 @@
 require("src.globals")
+require("src.commands")
 require("src.bitbuf")
 require("src.anticheat")
-require("src.commands")
 
 local aimbot = require("src.aimbot")
 local tickshift = require("src.tickshift")
 local antiaim = require("src.antiaim")
 local visuals = require("src.visuals")
 local movement = require("src.movement")
+local chams = require("src.chams")
 
 require("src.background")
-
---aimbot:SetDebug(false)
 
 callbacks.Unregister("CreateMove", "CM garlic bread cheat aimbot")
 callbacks.Register("CreateMove", "CM garlic bread cheat aimbot", aimbot.CreateMove)
@@ -29,12 +28,20 @@ callbacks.Register("Draw", "DRAW garlic bread tick shifting", tickshift.Draw)
 
 callbacks.Unregister("CreateMove", "CM garlic bread anti aim")
 callbacks.Register("CreateMove", "CM garlic bread anti aim", antiaim.CreateMove)
+callbacks.Unregister("Draw", "DRAW garlic bread anti aim")
+callbacks.Register("Draw", "DRAW garlic bread anti aim", antiaim.Draw)
 
 callbacks.Unregister("RenderView", "RV garlic bread custom fov")
 callbacks.Register("RenderView", "RV garlic bread custom fov", visuals.CustomFOV)
 
 callbacks.Unregister("CreateMove", "CM garlic bread movement")
 callbacks.Register("CreateMove", "CM garlic bread movement", movement.CreateMove)
+
+callbacks.Unregister("CreateMove", "CM garlic bread chams")
+callbacks.Register("CreateMove", "CM garlic bread chams", chams.CreateMove)
+
+callbacks.Unregister("DrawModel", "DME garlic bread chams")
+callbacks.Register("DrawModel", "DME garlic bread chams", chams.DrawModel)
 
 callbacks.Register("Unload", "UL garlic bread unload", function()
 	antiaim.unload()
