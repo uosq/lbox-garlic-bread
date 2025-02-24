@@ -434,25 +434,9 @@ local function Draw()
 	if (engine:IsGameUIVisible() or engine:Con_IsVisible()) then return end
 
 	if localplayer and localplayer:IsAlive() and settings.fov <= 89 then
-		--[[
-		local shoot_pos = localplayer:GetAbsOrigin() + localplayer:GetPropVector("m_vecViewOffset[0]")
-		local viewangles = engine:GetViewAngles()
-		local forward = viewangles:Forward()
-		local destination = shoot_pos + (forward * 1000)
-		local trace = engine.TraceLine(shoot_pos, destination, MASK_SHOT_HULL)
-		if not trace then return end
-		local rightangles = vector.AngleRight(viewangles)
-		vector.AngleNormalize(EulerAngles(rightangles:Unpack()))
-		local rightforward = vector.Angles(EulerAngles(rightangles:Unpack()))
-		rightforward = rightforward * (settings.fov * 6.75)
-		local maxaimat = trace.endpos + rightforward
-		local screen_pos = client.WorldToScreen(maxaimat)
-		if not screen_pos then return end
-		local radius = math.abs(width/2 - screen_pos[1])
-		draw.Color(255,255,255,255)
-		draw.OutlinedCircle(math.floor(width/2), math.floor(height/2), math.floor(radius), 64)]]
 		local aimfov = settings.fov
-		local viewfov = (106.26020812988 * GB_GLOBALS.m_flCustomFOV)/90
+		local viewfov = GB_GLOBALS.m_flCustomFOV
+		if (not aimfov or not viewfov) then return end --- wtf why is it a "number?"
 		local radius = (math.tan(math.rad(aimfov)/2))/(math.tan(math.rad(viewfov)/2)) * width
 		draw.Color(255,255,255,255)
 		draw.OutlinedCircle(math.floor(width/2), math.floor(height/2), math.floor(radius), 64)
