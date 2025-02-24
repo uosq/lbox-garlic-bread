@@ -254,7 +254,7 @@ local function CreateMove(usercmd)
 
 	--- try to make stac dont ban us :3
 	local m_AimbotMode = GB_GLOBALS.m_bIsStacRunning and aimbot_mode.smooth or settings.mode
-	local m_SmoothValue = GB_GLOBALS.m_bIsStacRunning and 10 or settings.smooth_value
+	local m_SmoothValue = GB_GLOBALS.m_bIsStacRunning and 20 or settings.smooth_value
 
 	local shoot_pos = GetShootPosition()
 	if not shoot_pos then
@@ -434,24 +434,28 @@ local function Draw()
 	if (engine:IsGameUIVisible() or engine:Con_IsVisible()) then return end
 
 	if localplayer and localplayer:IsAlive() and settings.fov <= 89 then
-		 -- Get base FOV considering scope state
-		 local base_fov = localplayer:InCond(E_TFCOND.TFCond_Zoomed) and 20 or GB_GLOBALS.m_flCustomFOV
-		 
-		 -- Convert FOVs to distances at a normalized screen width
-		 local screen_distance = (width / 2) / math.tan(math.rad(base_fov / 2))
-		 local circle_radius = screen_distance * math.tan(math.rad(settings.fov / 2))
-		 
-		 -- Scale the radius to screen coordinates
-		 local scaled_radius = (circle_radius / screen_distance) * (width / 2)
-
-		 -- Draw the circle with appropriate color
-		 if GB_GLOBALS.m_nAimbotTarget then
-			  draw.Color(150, 255, 150, 255)
-		 else
-			  draw.Color(255, 255, 255, 255)
-		 end
-
-		 draw.OutlinedCircle(math.floor(width * 0.5), math.floor(height * 0.5), math.floor(scaled_radius), 64)
+		--[[
+		local shoot_pos = localplayer:GetAbsOrigin() + localplayer:GetPropVector("m_vecViewOffset[0]")
+		local viewangles = engine:GetViewAngles()
+		local forward = viewangles:Forward()
+		local destination = shoot_pos + (forward * 1000)
+		local trace = engine.TraceLine(shoot_pos, destination, MASK_SHOT_HULL)
+		if not trace then return end
+		local rightangles = vector.AngleRight(viewangles)
+		vector.AngleNormalize(EulerAngles(rightangles:Unpack()))
+		local rightforward = vector.Angles(EulerAngles(rightangles:Unpack()))
+		rightforward = rightforward * (settings.fov * 6.75)
+		local maxaimat = trace.endpos + rightforward
+		local screen_pos = client.WorldToScreen(maxaimat)
+		if not screen_pos then return end
+		local radius = math.abs(width/2 - screen_pos[1])
+		draw.Color(255,255,255,255)
+		draw.OutlinedCircle(math.floor(width/2), math.floor(height/2), math.floor(radius), 64)]]
+		local aimfov = settings.fov
+		local viewfov = (106.26020812988 * GB_GLOBALS.m_flCustomFOV)/90
+		local radius = (math.tan(math.rad(aimfov)/2))/(math.tan(math.rad(viewfov)/2)) * width
+		draw.Color(255,255,255,255)
+		draw.OutlinedCircle(math.floor(width/2), math.floor(height/2), math.floor(radius), 64)
 	end
 end
 

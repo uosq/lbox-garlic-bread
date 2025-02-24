@@ -29,8 +29,8 @@ local chams_materials = {
 local m_szMaterialMode = "flat"
 
 local COLORS = {
-	RED = { 255, 200, 200, 51 },
-	BLU = { 94, 189, 224, 51 },
+	RED = { 255, 200, 200, 200 },
+	BLU = { 210, 210, 255, 200 },
 
 	TARGET = { 128, 255, 0, 50 },
 	FRIEND = { 66, 245, 170, 50 },

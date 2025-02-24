@@ -43,6 +43,9 @@ callbacks.Register("CreateMove", "CM garlic bread chams", chams.CreateMove)
 callbacks.Unregister("DrawModel", "DME garlic bread chams")
 callbacks.Register("DrawModel", "DME garlic bread chams", chams.DrawModel)
 
+--callbacks.Unregister("SendNetMsg", "NETMSG garlic bread spoof convars")
+--callbacks.Register("SendNetMsg", "NETMSG garlic bread spoof convars", spoof.SendNetMsg)
+
 callbacks.Register("Unload", "UL garlic bread unload", function()
 	antiaim.unload()
 	GB_GLOBALS = nil

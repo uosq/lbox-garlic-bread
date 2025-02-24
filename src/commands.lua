@@ -1,10 +1,6 @@
 local m_commands = {}
 local m_prefix = "gb"
 
---[[
-	gb command args
-]]
-
 --- If no additional param other than cmdname, the command has no args
 ---@param cmdname string
 ---@param help string
