@@ -73,10 +73,6 @@ local HEADSHOT_WEAPONS_INDEXES = {
 	[1006] = true, --- FESTIVE AMBASSADOR
 }
 
-GB_AIMBOT_GETSETTINGS = function()
-	return settings
-end
-
 --- stuff used by melee aimbot
 local ENGINEER_CLASS = 9
 local MAX_UPGRADE_LEVEL = 3
@@ -84,14 +80,6 @@ local BUILDINGS = {
 	CObjectSentrygun = true,
 	CObjectDispenser = true,
 	CObjectTeleporter = true,
-}
-
---- stuff used by hitscan aimbot
-local AcceptableEntities = {
-	CObjectSentrygun = true,
-	CObjectDispenser = true,
-	CObjectTeleporter = true,
-	CTFPlayer = true,
 }
 
 --- Cache some important functions
@@ -255,6 +243,8 @@ local function CreateMove(usercmd)
 	--- try to make stac dont ban us :3
 	local m_AimbotMode = GB_GLOBALS.m_bIsStacRunning and aimbot_mode.smooth or settings.mode
 	local m_SmoothValue = GB_GLOBALS.m_bIsStacRunning and 20 or settings.smooth_value
+	local viewfov = localplayer:InCond(E_TFCOND.TFCond_Zoomed) and 20 or GB_GLOBALS.m_flCustomFOV
+	local m_Fov = settings.fov * (viewfov/90)
 
 	local shoot_pos = GetShootPosition()
 	if not shoot_pos then
@@ -267,7 +257,7 @@ local function CreateMove(usercmd)
 	--- trust me, i tried like 3 or 4 different math combinations
 	--- and i decided to just give up and paste amalgam for the fov xd
 
-	local best_angle, best_fov, target, looking_at_target = nil, settings.fov, nil, false
+	local best_angle, best_fov, target, looking_at_target = nil, m_Fov, nil, false
 
 	---@param class Entity[]
 	local function CheckBuilding(class)
