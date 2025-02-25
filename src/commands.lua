@@ -10,11 +10,10 @@ local function RegisterCommand(cmdname, help, num_args, func)
 	m_commands[cmdname] = {func = func, help = help, num_args = num_args}
 end
 
----@param cmd StringCmd
-local function SendStringCmd(cmd)
-	local sent_command = cmd:Get()
+---@param text string
+local function RunCommand(text)
 	local words = {}
-	for word in string.gmatch(sent_command, "%S+") do
+	for word in string.gmatch(text, "%S+") do
 		words[#words + 1] = word
 	end
 
@@ -33,17 +32,28 @@ local function SendStringCmd(cmd)
 		assert(type(num_args) == "number", "SendStringCmd -> command.num_args is not a number! wtf")
 
 		local args = {}
-		for i = 1, num_args do
-			local arg = tostring(words[i])
-			args[i] = arg
+		if num_args >= 1 then
+			for i = 1, num_args do
+				local arg = tostring(words[i])
+				args[i] = arg
+			end
 		end
 
-		func(args, num_args)
-
+		local whole_string = table.concat(words, " ")
+		func(args, num_args, whole_string)
 	else
 		printc(171, 160, 2, 255, "Invalid option! Use 'gb help' if you want to know the correct name")
+		return false
 	end
-	cmd:Set("")
+	return true
+end
+
+---@param cmd StringCmd
+local function SendStringCmd(cmd)
+	local sent_command = cmd:Get()
+	if RunCommand(sent_command) then
+		cmd:Set("")
+	end
 end
 
 local function print_help()
@@ -61,4 +71,5 @@ RegisterCommand("help", "prints all command's description and usage", 0, print_h
 printc(255, 255, 255, 255, "You can use 'gb help' command to print all the console commands")
 
 GB_GLOBALS.RegisterCommand = RegisterCommand
+GB_GLOBALS.RunCommand = RunCommand
 callbacks.Register("SendStringCmd", "SSC garlic bread console commands", SendStringCmd)

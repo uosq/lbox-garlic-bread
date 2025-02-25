@@ -39,14 +39,14 @@ local COLORS = {
 	PRIORITY = { 238, 255, 0, 50 },
 
 	LOCALPLAYER = { 156, 66, 245, 50 },
-	VIEWMODEL_ARM = { 24, 255, 0, 50 },
+	VIEWMODEL_ARM = { 210, 210, 255, 150 },
 
 	WEAPON_PRIMARY = { 163, 64, 90, 100 },
 	WEAPON_SECONDARY = { 74, 79, 125, 100 },
 	WEAPON_MELEE = { 255, 255, 255, 100 },
 
-	RED_HAT = { 21, 255, 0, 150 },
-	BLU_HAT = { 255, 0, 13, 150 },
+	RED_HAT = { 255, 0, 0, 150 },
+	BLU_HAT = { 0, 0, 255, 150 },
 
 	SENTRY_RED = { 255, 0, 0, 150 },
 	SENTRY_BLU = { 8, 0, 255, 150 },
@@ -58,7 +58,7 @@ local COLORS = {
 	TELEPORTER_BLU = { 0, 217, 255, 150 },
 
 	AMMOPACK = { 255, 255, 255, 150 },
-	HEALTHKIT = { 255, 200, 200, 255 },
+	HEALTHKIT = { 200, 255, 200, 100 },
 
 	MVM_MONEY = { 52, 235, 82, 150 },
 
@@ -78,6 +78,7 @@ local m_bDrawOnEnemyOnly = false
 local m_bDrawOnVisibleOnly = true
 local m_bDrawOriginalPlayerMaterial = false
 local m_bDrawOriginalViewmodelArmMaterial = false
+local m_bIgnoreDisguisedSpy = true
 
 local m_bDrawOn = {
   HEALTHPACK = true,
@@ -198,6 +199,8 @@ local function update_entities()
 		if (m_bDrawOnEnemyOnly and team == localteam) then goto continue end
 
 		if (m_bDrawOn.PLAYERS and entity:IsPlayer() and entity:IsAlive()) then
+			if (entity:InCond(E_TFCOND.TFCond_Disguised) and m_bIgnoreDisguisedSpy) then goto continue end
+
 			entity_list_color_back[i] = get_entity_color(entity)
 
 			local moveChild = entity:GetMoveChild()
@@ -218,23 +221,6 @@ local function update_entities()
 					entity_list_color_back[i] = get_entity_color(entity)
 					goto continue
 				end
-
-				--- medkit, ammopack
-				if ((m_bDrawOn.AMMOPACK or m_bDrawOn.HEALTHPACK) and class == "CBaseAnimating") then
-					local model = entity:GetModel()
-					if (not model) then goto continue end
-
-					local model_name = string.lower(models.GetModelName(model))
-					if (not model_name) then goto continue end
-
-					if (m_bDrawOn.AMMOPACK and string.find(model_name, "ammo")) then
-						entity_list_color_back[i] = COLORS.AMMOPACK
-					elseif (m_bDrawOn.HEALTHPACK and (string.find(model_name, "health") or string.find(model_name, "medkit"))) then
-						entity_list_color_back[i] = COLORS.HEALTHKIT
-					end
-
-					goto continue
-				end
 			end
 
 			if (m_bDrawOn.RAGDOLLS and (class == "CTFRagdoll" or class == "CRagdollProp" or class == "CRagdollPropAttached")) then
@@ -251,6 +237,26 @@ local function update_entities()
 		local viewmodel = me:GetPropEntity("m_hViewModel[0]")
 		if (viewmodel) then
 			entity_list_color_back[viewmodel:GetIndex()] = get_entity_color(viewmodel)
+		end
+	end
+
+	--- lol ammo and healthpacks arent in entity list xd
+	if (m_bDrawOn.AMMOPACK or m_bDrawOn.HEALTHPACK) then
+		local cbasenimating = entities.FindByClass("CBaseAnimating")
+		for _, entity in pairs (cbasenimating) do
+				--- medkit, ammopack
+			local model = entity:GetModel()
+			if (model) then
+				local model_name = string.lower(models.GetModelName(model))
+				if (model_name) then
+					local i = entity:GetIndex()
+					if (m_bDrawOn.AMMOPACK and string.find(model_name, "ammo")) then
+						entity_list_color_back[i] = COLORS.AMMOPACK
+					elseif (m_bDrawOn.HEALTHPACK and (string.find(model_name, "health") or string.find(model_name, "medkit"))) then
+						entity_list_color_back[i] = COLORS.HEALTHKIT
+					end
+				end
+			end
 		end
 	end
 
@@ -341,11 +347,11 @@ function chams.DrawModel(context)
 	context:Execute()
 
 	--- resetting stuff
-	context:DepthRange(0, 1)
 	-- why no leak? wtf
 	--context:SetColorModulation(get_color(255, 255, 255, 255))
 	--context:SetAlphaModulation(1)
 	DEPTHOVERRIDE(false)
+	context:DepthRange(0, 1)
 end
 
 local function CMD_ToggleChams()
@@ -390,7 +396,7 @@ end
 
 local function CMD_ToggleDrawOnEnemyOnly()
   m_bDrawOnEnemyOnly = not m_bDrawOnEnemyOnly
-  printc(150, 255, 150, 255, "Chams will " .. (m_bDrawOnEnemyOnly and "draw" or "not draw") .. " only the enemies")
+  printc(150, 255, 150, 255, "Chams will " .. (m_bDrawOnEnemyOnly and "draw only the visible enemies" or "not draw the invisible enemies"))
 end
 
 local function CMD_SetUpdateInterval(args, num_args)
@@ -408,9 +414,9 @@ end
 GB_GLOBALS.RegisterCommand("chams->toggle", "Toggles chams", 0, CMD_ToggleChams)
 GB_GLOBALS.RegisterCommand("chams->material", "Changes chams material | args: material mode (flat or textured)", 1, CMD_ChangeMaterialMode)
 GB_GLOBALS.RegisterCommand("chams->change_color", "Changes the selected color on chams | args: color (string), r, g, b, a (numbers) | example: chams->change_color viewmodel_arm 150 255 150 255", 5, CMD_ChangeColor)
-GB_GLOBALS.RegisterCommand("chams->toggle_visible_only", "Makes chams only draw on visible entities", 0, CMD_ToggleVisibleOnly)
-GB_GLOBALS.RegisterCommand("chams->toggle_original_player_mat", "Toggles chams drawing the original player material", 0, CMD_ToggleDrawOriginalPlayerMat)
-GB_GLOBALS.RegisterCommand("chams->toggle_enemy_only", "Toggles chams drawing on only enemies or not", 0, CMD_ToggleDrawOnEnemyOnly)
-GB_GLOBALS.RegisterCommand("chams->toggle_original_viewmodel_mat", "Toggles chams drawing the original viewmodel material", 0, CMD_ToggleDrawOriginalViewmodelMat)
+GB_GLOBALS.RegisterCommand("chams->toggle->visible_only", "Makes chams only draw on visible entities", 0, CMD_ToggleVisibleOnly)
+GB_GLOBALS.RegisterCommand("chams->toggle->original_player_mat", "Toggles chams drawing the original player material", 0, CMD_ToggleDrawOriginalPlayerMat)
+GB_GLOBALS.RegisterCommand("chams->toggle->enemy_only", "Toggles chams drawing on only enemies or not", 0, CMD_ToggleDrawOnEnemyOnly)
+GB_GLOBALS.RegisterCommand("chams->toggle->original_viewmodel_mat", "Toggles chams drawing the original viewmodel material", 0, CMD_ToggleDrawOriginalViewmodelMat)
 GB_GLOBALS.RegisterCommand("chams->set_update_interval", "Changes the entity update interval | args new value (number)", 1, CMD_SetUpdateInterval)
 return chams

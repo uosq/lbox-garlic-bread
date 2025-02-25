@@ -7,8 +7,8 @@ local settings = {
 	mode = aimbot_mode.silent,
 	lock_aim = true,
 	smooth_value = 10, --- lower value, smoother aimbot (10 = very smooth, 100 = basically plain aimbot)
-	melee_rage = false,
 	auto_spinup = true,
+	aimfov = true,
 
 	--- should aimbot run when using one of them?
 	hitscan = true,
@@ -46,20 +46,6 @@ local width, height = draw.GetScreenSize()
 
 --- TODO: rename later to CLASS_BONES
 local CLASS_HITBOXES = require("src.hitboxes")
-
---- only works with STUDIO models
---[[local HITBOXES = {
-	Head = 6,
-	Body = 3,
-	--LeftHand = 9,
-	LeftArm = 8,
-	--RightHand = 12,
-	RightArm = 11,
-	--LeftFeet = 15,
-	--RightFeet = 18,
-	LeftLeg = 14,
-	RightLeg = 17,
-}]]
 
 local VISIBLE_FRACTION = 0.4
 
@@ -244,7 +230,7 @@ local function CreateMove(usercmd)
 	local m_AimbotMode = GB_GLOBALS.m_bIsStacRunning and aimbot_mode.smooth or settings.mode
 	local m_SmoothValue = GB_GLOBALS.m_bIsStacRunning and 20 or settings.smooth_value
 	local viewfov = localplayer:InCond(E_TFCOND.TFCond_Zoomed) and 20 or GB_GLOBALS.m_flCustomFOV
-	local m_Fov = settings.fov * (math.tan(math.rad(viewfov / 2)) / math.tan(math.rad(90 / 2)))
+	local m_Fov = settings.fov * (math.tan(math.rad(viewfov / 2)) / math.tan(math.rad(45)))
 
 	local shoot_pos = GetShootPosition()
 	if not shoot_pos then
@@ -284,15 +270,23 @@ local function CreateMove(usercmd)
 			goto continue
 		end
 
+		--- not the best way, probably using a single if statement would be better
+		--- but i think its clearer what it does like this
 		if entity:InCond(E_TFCOND.TFCond_Ubercharged) then
 			goto continue
 		elseif entity:InCond(E_TFCOND.TFCond_Cloaked) and settings.ignore.cloaked then
 			goto continue
+		elseif settings.ignore.bonked and entity:InCond(E_TFCOND.TFCond_Bonked) then
+			goto continue
+		elseif settings.ignore.deadringer and entity:InCond(E_TFCOND.TFCond_DeadRingered) then
+			goto continue
+		elseif settings.ignore.disguised and entity:InCond(E_TFCOND.TFCond_Disguised) then
+			goto continue
+		elseif settings.ignore.friends and playerlist.GetPriority(entity) == -1 then
+			goto continue
+		elseif settings.ignore.taunting and entity:InCond(E_TFCOND.TFCond_Taunting) then
+			goto continue
 		end
-
-		--[[
-   local mins, maxs = entity:GetMins(), entity:GetMaxs()
-   local center = entity:GetAbsOrigin() + ((mins + maxs) * ]]
 
 		local enemy_class = entity:GetPropInt("m_PlayerClass", "m_iClass")
 		local best_bone_for_weapon = nil
@@ -421,11 +415,12 @@ local function FrameStageNotify(stage)
 end
 
 local function Draw()
+	if not settings.aimfov then return end
 	if (engine:IsGameUIVisible() or engine:Con_IsVisible()) then return end
 
 	if localplayer and localplayer:IsAlive() and settings.fov <= 89 then
 		local viewfov = GB_GLOBALS.m_flCustomFOV
-		local aimfov = settings.fov * (math.tan(math.rad(viewfov / 2)) / math.tan(math.rad(90 / 2)))
+		local aimfov = settings.fov * (math.tan(math.rad(viewfov / 2)) / math.tan(math.rad(45)))
 		if (not aimfov or not viewfov) then return end --- wtf why is it a "number?"
 		local radius = (math.tan(math.rad(aimfov)/2))/(math.tan(math.rad(viewfov)/2)) * width
 		draw.Color(255,255,255,255)
@@ -472,11 +467,16 @@ local function cmd_ToggleAimLock()
 	printc(150, 255, 150, 255, "Aim lock is now " .. (settings.lock_aim and "enabled" or "disabled"))
 end
 
+local function cmd_ToggleAimFov()
+	settings.aimfov = not settings.aimfov
+end
+
 GB_GLOBALS.RegisterCommand("aimbot->change_mode", "Change aimbot mode | args: mode (plain, smooth or silent)", 1, cmd_ChangeAimbotMode)
 GB_GLOBALS.RegisterCommand("aimbot->change_key", "Changes aimbot key | args: key (w, f, g, ...)", 1, cmd_ChangeAimbotKey)
 GB_GLOBALS.RegisterCommand("aimbot->change_fov", "Changes aimbot fov | args: fov (number)", 1, cmd_ChangeAimbotFov)
-GB_GLOBALS.RegisterCommand("aimbot->ignore->toggle", "Toggles a aimbot ignore option | args: option name (string)", 1, cmd_ChangeAimbotIgnore)
-GB_GLOBALS.RegisterCommand("aimbot->aimlock_toggle", "Makes the aimbot not stop looking at the targe when shooting", 0, cmd_ToggleAimLock)
+GB_GLOBALS.RegisterCommand("aimbot->ignore->toggle", "Toggles a aimbot ignore option (like ignore cloaked) | args: option name (string)", 1, cmd_ChangeAimbotIgnore)
+GB_GLOBALS.RegisterCommand("aimbot->toggle->aimlock", "Makes the aimbot not stop looking at the targe when shooting", 0, cmd_ToggleAimLock)
+GB_GLOBALS.RegisterCommand("aimbot->toggle->fovindicator", "Toggles aim fov circle", 0, cmd_ToggleAimFov)
 
 local aimbot = {}
 aimbot.CreateMove = CreateMove

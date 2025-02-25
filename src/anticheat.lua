@@ -26,4 +26,4 @@ local function CMD_Toggle()
 	printc(255, 0, 0, 255, "STAC checker is " .. (m_bEnabled and "enabled" or "disabled"))
 end
 
-GB_GLOBALS.RegisterCommand("anticheat->toggle_stac_check", "Toggles the stac checker, so we can gamble if the server has STAC :smile:", 0,  CMD_Toggle)
+GB_GLOBALS.RegisterCommand("anticheat->toggle_stac_check", "Lets go gambling!", 0,  CMD_Toggle)

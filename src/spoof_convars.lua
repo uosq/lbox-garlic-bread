@@ -24,7 +24,7 @@ end
 
 --- gb setsvar name value
 
-local function SpoofConVar(args, num_args)
+local function CMD_SpoofConVar(args, num_args)
    if (not args or #args ~= num_args) then return end
    local cvar = tostring(args[1])
    local var = tostring(args[2])
@@ -32,5 +32,5 @@ local function SpoofConVar(args, num_args)
    client.SetConVar(cvar, var)
 end
 
-GB_GLOBALS.RegisterCommand("setsvar", "Spoofs a convar to whatever you want the server to see | args: name, value", 2,  SpoofConVar)
+GB_GLOBALS.RegisterCommand("spoof->setsvar", "Spoofs a convar to whatever you want the server to see | args: name, new value", 2,  CMD_SpoofConVar)
 return funcs
