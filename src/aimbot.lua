@@ -27,6 +27,7 @@ local settings = {
 		bonked = true,
 		friends = false,
 		deadringer = false,
+		spectators = false,
 	},
 
 	aim = {
@@ -155,8 +156,8 @@ end
 ---@param targetIndex integer
 local function MakeWeaponShoot(usercmd, targetIndex)
 	usercmd.buttons = usercmd.buttons | IN_ATTACK
-	GB_GLOBALS.m_nAimbotTarget = targetIndex
-	GB_GLOBALS.m_bIsAimbotShooting = true
+	GB_GLOBALS.nAimbotTarget = targetIndex
+	GB_GLOBALS.bIsAimbotShooting = true
 end
 
 --- Only run this in CreateMove, after localplayer and weapon are valid!
@@ -190,8 +191,8 @@ local function RunMelee(usercmd)
 					end
 
 					--- dont run after this or it will try to butterknife
-					GB_GLOBALS.m_nAimbotTarget = index
-					GB_GLOBALS.m_bIsAimbotShooting = false
+					GB_GLOBALS.nAimbotTarget = index
+					GB_GLOBALS.bIsAimbotShooting = false
 					return true
 				end
 
@@ -205,8 +206,12 @@ end
 
 ---@param usercmd UserCmd
 local function CreateMove(usercmd)
-	GB_GLOBALS.m_bIsAimbotShooting = false
-	GB_GLOBALS.m_nAimbotTarget = nil
+	GB_GLOBALS.bIsAimbotShooting = false
+	GB_GLOBALS.nAimbotTarget = nil
+
+	if GB_GLOBALS.bSpectated and not settings.ignore.spectators then
+		return
+	end
 
 	localplayer = entities:GetLocalPlayer()
 	if not localplayer or not localplayer:IsAlive() then return end
@@ -227,9 +232,9 @@ local function CreateMove(usercmd)
 	if (weapon:GetPropInt("LocalWeaponData", "m_iClip1") == 0) then return end
 
 	--- try to make stac dont ban us :3
-	local m_AimbotMode = GB_GLOBALS.m_bIsStacRunning and aimbot_mode.smooth or settings.mode
-	local m_SmoothValue = GB_GLOBALS.m_bIsStacRunning and 20 or settings.smooth_value
-	local viewfov = localplayer:InCond(E_TFCOND.TFCond_Zoomed) and 20 or GB_GLOBALS.m_flCustomFOV
+	local m_AimbotMode = GB_GLOBALS.bIsStacRunning and aimbot_mode.smooth or settings.mode
+	local m_SmoothValue = GB_GLOBALS.bIsStacRunning and 20 or settings.smooth_value
+	local viewfov = localplayer:InCond(E_TFCOND.TFCond_Zoomed) and 20 or GB_GLOBALS.flCustomFOV
 	local m_Fov = settings.fov * (math.tan(math.rad(viewfov / 2)) / math.tan(math.rad(45)))
 
 	local shoot_pos = GetShootPosition()
@@ -397,8 +402,8 @@ local function CreateMove(usercmd)
 				end
 
 			end
-			GB_GLOBALS.m_bIsAimbotShooting = true
-			GB_GLOBALS.m_nAimbotTarget = target
+			GB_GLOBALS.bIsAimbotShooting = true
+			GB_GLOBALS.nAimbotTarget = target
 		end
 	end
 
@@ -419,7 +424,7 @@ local function Draw()
 	if (engine:IsGameUIVisible() or engine:Con_IsVisible()) then return end
 
 	if localplayer and localplayer:IsAlive() and settings.fov <= 89 then
-		local viewfov = GB_GLOBALS.m_flCustomFOV
+		local viewfov = GB_GLOBALS.flCustomFOV
 		local aimfov = settings.fov * (math.tan(math.rad(viewfov / 2)) / math.tan(math.rad(45)))
 		if (not aimfov or not viewfov) then return end --- wtf why is it a "number?"
 		local radius = (math.tan(math.rad(aimfov)/2))/(math.tan(math.rad(viewfov)/2)) * width

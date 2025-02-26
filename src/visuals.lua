@@ -15,15 +15,15 @@ local function RenderView(setup)
 	local player = entities:GetLocalPlayer()
 	if (not player) then return end
 
-	GB_GLOBALS.m_nPreAspectRatio = setup.aspectRatio
-	setup.aspectRatio = GB_GLOBALS.m_nAspectRatio == 0 and setup.aspectRatio or GB_GLOBALS.m_nAspectRatio
+	GB_GLOBALS.nPreAspectRatio = setup.aspectRatio
+	setup.aspectRatio = GB_GLOBALS.nAspectRatio == 0 and setup.aspectRatio or GB_GLOBALS.nAspectRatio
 
-	local fov = player:InCond(E_TFCOND.TFCond_Zoomed) and 20 or GB_GLOBALS.m_flCustomFOV
+	local fov = player:InCond(E_TFCOND.TFCond_Zoomed) and 20 or GB_GLOBALS.flCustomFOV
 	if (fov) then
 		setup.fov = fov
 	end
 
-	if GB_GLOBALS.m_bNoRecoil and player:GetPropInt("m_nForceTauntCam") == 0 then
+	if GB_GLOBALS.bNoRecoil and player:GetPropInt("m_nForceTauntCam") == 0 then
 		local punchangle = player:GetPropVector("m_vecPunchAngle")
 		setup.angles = EulerAngles((setup.angles - punchangle):Unpack())
 	end
@@ -48,7 +48,7 @@ visuals.FrameStageNotify = FrameStageNotify
 
 local function cmd_ChangeFOV(args)
 	if (not args or #args == 0 or not args[1]) then return end
-	GB_GLOBALS.m_flCustomFOV = tonumber(args[1])
+	GB_GLOBALS.flCustomFOV = tonumber(args[1])
 end
 
 local function cmd_ToggleThirdPerson()
@@ -64,7 +64,7 @@ local function cmd_SetThirdPersonOption(args, num_args)
 	thirdperson_options[option] = value
 end
 
-GB_GLOBALS.RegisterCommand("visuals->customfov", "Changes custom fov | args: new fov (number)", 1, cmd_ChangeFOV)
-GB_GLOBALS.RegisterCommand("visuals->toggle->thirdperson", "Toggles third person", 0, cmd_ToggleThirdPerson)
-GB_GLOBALS.RegisterCommand("visuals->set_thirdperson", "Sets the thirdperson option | args: option name (up, right, forward), new value (number)", 2, cmd_SetThirdPersonOption)
+GB_GLOBALS.RegisterCommand("visuals->fov->set", "Changes fov | args: new fov (number)", 1, cmd_ChangeFOV)
+GB_GLOBALS.RegisterCommand("visuals->thirdperson->toggle", "Toggles third person", 0, cmd_ToggleThirdPerson)
+GB_GLOBALS.RegisterCommand("visuals->thidperson->set", "Sets the thirdperson option | args: option name (up, right, forward), new value (number)", 2, cmd_SetThirdPersonOption)
 return visuals

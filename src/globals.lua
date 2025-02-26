@@ -1,17 +1,19 @@
 GB_GLOBALS = {
-	m_bIsStacRunning = false,
+	bIsStacRunning = false,
 
-	m_bIsAimbotShooting = false,
-	m_nAimbotTarget = nil,
+	bIsAimbotShooting = false,
+	nAimbotTarget = nil,
 
-	m_bWarping = false,
-	m_bRecharging = false,
+	bWarping = false,
+	bRecharging = false,
 
-	m_flCustomFOV = 90,
-	m_nPreAspectRatio = 0,
-	m_nAspectRatio = 1.78,
+	flCustomFOV = 90,
+	nPreAspectRatio = 0,
+	nAspectRatio = 1.78,
 
-	m_bNoRecoil = true,
+	bNoRecoil = true,
 
-	m_bBhopEnabled = false,
+	bBhopEnabled = false,
+
+	bSpectated = false,
 }

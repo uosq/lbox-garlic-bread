@@ -57,7 +57,7 @@ local function SendStringCmd(cmd)
 end
 
 local function print_help()
-	printc(255, 150, 150, 255, "Stac is " .. (GB_GLOBALS.m_bIsStacRunning and "detected" or "not running") .. " in this server")
+	printc(255, 150, 150, 255, "Stac is " .. (GB_GLOBALS.bIsStacRunning and "detected" or "not running") .. " in this server")
 	printc(255, 255, 255, 255, "The commands are:")
 
 	for name, props in pairs (m_commands) do

@@ -8,12 +8,12 @@ local m_realyaw, m_fakeyaw, m_realpitch, m_fakepitch = 0, 0, 0, 0
 ---@param usercmd UserCmd
 function antiaim.CreateMove(usercmd)
 	if
-		not GB_GLOBALS.m_bIsAimbotShooting
+		not GB_GLOBALS.bIsAimbotShooting
 		and m_bEnabled
 		and usercmd.buttons & IN_ATTACK == 0
-		and not GB_GLOBALS.m_bIsStacRunning
-		and not GB_GLOBALS.m_bWarping
-		and not GB_GLOBALS.m_bRecharging
+		and not GB_GLOBALS.bIsStacRunning
+		and not GB_GLOBALS.bWarping
+		and not GB_GLOBALS.bRecharging
 	then
 		--- make sure we aren't overchoking
 		if clientstate:GetChokedCommands() >= 21 then
@@ -86,7 +86,7 @@ function antiaim.Draw()
 end
 
 local function cmd_toggle_aa()
-	if (GB_GLOBALS.m_bIsStacRunning) then
+	if (GB_GLOBALS.bIsStacRunning) then
 		printc(255, 0, 0, 255, "STAC is active! Won't change AA")
 		return
 	end

@@ -7,6 +7,7 @@ require("src.anticheat")
 require("src.convars")
 
 local spoof = require("src.spoof_convars")
+local spectators = require("src.spectatorlist")
 local aimbot = require("src.aimbot")
 local tickshift = require("src.tickshift")
 local antiaim = require("src.antiaim")
@@ -17,12 +18,18 @@ local binds = require("src.binds")
 
 require("src.background")
 
+callbacks.Unregister("CreateMove", "CM garlic bread spectator list")
+callbacks.Register("CreateMove", "CM garlic bread spectator list", spectators.CreateMove)
+
 callbacks.Unregister("CreateMove", "CM garlic bread cheat aimbot")
 callbacks.Register("CreateMove", "CM garlic bread cheat aimbot", aimbot.CreateMove)
 callbacks.Unregister("FrameStageNotify", "FSN garlic bread cheat aimbot frame stage")
 callbacks.Register("FrameStageNotify", "FSN garlic bread cheat aimbot frame stage", aimbot.FrameStageNotify)
 callbacks.Unregister("Draw", "DRAW garlic bread aimbot")
 callbacks.Register("Draw", "DRAW garlic bread aimbot", aimbot.Draw)
+
+callbacks.Unregister("Draw", "DRAW garlic bread spectator list")
+callbacks.Register("Draw", "DRAW garlic bread spectator list", spectators.Draw)
 
 --- this SendNetMsg overrides tickshift.SendNetMsg, gotta find a workaround or mix the two together (last option)
 callbacks.Unregister("SendNetMsg", "NETMSG garlic bread spoof convars")
@@ -54,6 +61,8 @@ callbacks.Register("CreateMove", "CM garlic bread chams", chams.CreateMove)
 callbacks.Unregister("DrawModel", "DME garlic bread chams")
 callbacks.Register("DrawModel", "DME garlic bread chams", chams.DrawModel)
 
+callbacks.Unregister("CreateMove", "CM garlic bread binds")
+callbacks.Unregister("FireGameEvent", "GE garlic bread binds")
 callbacks.Register("CreateMove", "CM garlic bread binds", binds.CreateMove)
 callbacks.Register("FireGameEvent", "GE garlic bread binds", binds.FireGameEvent)
 

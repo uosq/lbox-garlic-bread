@@ -8,7 +8,7 @@ local function CreateMove(usercmd)
 	local flags = localplayer:GetPropInt("m_fFlags")
 	local ground = (flags & FL_ONGROUND) ~= 0
 	local class = localplayer:GetPropInt("m_PlayerClass", "m_iClass")
-	if not GB_GLOBALS.m_bIsStacRunning and bhop_enabled and class ~= 1 then
+	if not GB_GLOBALS.bIsStacRunning and bhop_enabled and class ~= 1 then
 		local jump = (usercmd.buttons & IN_JUMP) ~= 0
 		if (ground and jump) then
 			usercmd.buttons = usercmd.buttons | IN_JUMP

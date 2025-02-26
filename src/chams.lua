@@ -131,7 +131,7 @@ local function get_entity_color(entity)
 		return COLORS.LOCALPLAYER
 	end
 
-	if (GB_GLOBALS.m_nAimbotTarget == entity:GetIndex()) then
+	if (GB_GLOBALS.nAimbotTarget == entity:GetIndex()) then
 		return COLORS.TARGET
 	end
 

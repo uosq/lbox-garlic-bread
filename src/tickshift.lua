@@ -67,7 +67,7 @@ function HandleWarp(msg)
 	end
 
 	if
-		GB_GLOBALS.m_bIsAimbotShooting
+		GB_GLOBALS.bIsAimbotShooting
 		and GB_GLOBALS.usercmd_buttons
 		and GB_GLOBALS.usercmd_buttons & IN_ATTACK ~= 0
 	then
@@ -149,8 +149,8 @@ end
 ---@param reliable boolean
 ---@param isvoice boolean
 function tickshift.SendNetMsg(msg, reliable, isvoice)
-	GB_GLOBALS.m_bWarping = false
-	GB_GLOBALS.m_bRecharging = false
+	GB_GLOBALS.bWarping = false
+	GB_GLOBALS.bRecharging = false
 
 	--- return early if user disabled with console commands
 	if (not m_enabled) then return true end
@@ -159,9 +159,7 @@ function tickshift.SendNetMsg(msg, reliable, isvoice)
 		HandleJoinServers(msg)
 	end
 
-	if GB_GLOBALS.m_bIsStacRunning then
-		return true
-	end
+	if GB_GLOBALS.bIsStacRunning then return true end
 
 	if engine.IsChatOpen() or engine.IsGameUIVisible() or engine.Con_IsVisible() then
 		return true
@@ -169,10 +167,10 @@ function tickshift.SendNetMsg(msg, reliable, isvoice)
 
 	if msg:GetType() == CLC_MOVE_TYPE then
 		if warping and not recharging then
-			GB_GLOBALS.m_bWarping = true
+			GB_GLOBALS.bWarping = true
 			HandleWarp(msg)
 		elseif HandleRecharge() then
-			GB_GLOBALS.m_bRecharging = true
+			GB_GLOBALS.bRecharging = true
 			return false
 		end
 	end
@@ -187,7 +185,7 @@ end
 ---@param usercmd UserCmd
 function tickshift.CreateMove(usercmd)
 	if engine.IsChatOpen() or engine.IsGameUIVisible() or engine.Con_IsVisible()
-		or GB_GLOBALS.m_bIsStacRunning or (not m_enabled) then
+		or GB_GLOBALS.bIsStacRunning or not m_enabled then
 		return
 	end
 
@@ -199,9 +197,9 @@ function tickshift.CreateMove(usercmd)
 	max_ticks = GetMaxServerTicks()
 	charged_ticks = clamp(charged_ticks, 0, max_ticks)
 
-	shooting = ((usercmd.buttons & IN_ATTACK) ~= 0 or GB_GLOBALS.m_bIsAimbotShooting) and GB_GLOBALS.CanWeaponShoot()
+	shooting = ((usercmd.buttons & IN_ATTACK) ~= 0 or GB_GLOBALS.bIsAimbotShooting) and GB_GLOBALS.CanWeaponShoot()
 	warping = input.IsButtonDown(m_settings.warp.send_key)
-	GB_GLOBALS.m_bWarping = warping
+	GB_GLOBALS.bWarping = warping
 	recharging = input.IsButtonDown(m_settings.warp.recharge_key)
 
 	local state, tick = input.IsButtonPressed(m_settings.warp.passive.toggle_key)
@@ -217,7 +215,8 @@ function tickshift.Draw()
 		engine:Con_IsVisible()
 		or engine:IsGameUIVisible()
 		or (engine:IsTakingScreenshot() and gui.GetValue("clean screenshots") == 1)
-		or (not m_enabled)
+		or not m_enabled
+		or GB_GLOBALS.bIsStacRunning
 	then
 		return
 	end
