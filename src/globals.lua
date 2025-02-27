@@ -17,3 +17,7 @@ GB_GLOBALS = {
 
 	bSpectated = false,
 }
+
+callbacks.Register("Unload", "UNLOAD garlic bread globals", function ()
+	GB_GLOBALS = nil
+end)

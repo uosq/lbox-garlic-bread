@@ -1,5 +1,4 @@
 local visuals = {}
-local last_pressed_button_tick = 0
 local thirdperson_enabled = false
 
 local thirdperson_options = {
@@ -7,6 +6,13 @@ local thirdperson_options = {
 	up = 0,
 	forward = 0
 }
+
+local function calc_fov(fov, aspect_ratio)
+	local halfanglerad = fov * (0.5 * math.pi / 180)
+	local t = math.tan(halfanglerad) * (aspect_ratio / (4/3))
+	local ret = (180 / math.pi) * math.atan(t)
+	return ret * 2
+end
 
 ---@param setup ViewSetup
 local function RenderView(setup)
@@ -19,8 +25,8 @@ local function RenderView(setup)
 	setup.aspectRatio = GB_GLOBALS.nAspectRatio == 0 and setup.aspectRatio or GB_GLOBALS.nAspectRatio
 
 	local fov = player:InCond(E_TFCOND.TFCond_Zoomed) and 20 or GB_GLOBALS.flCustomFOV
-	if (fov) then
-		setup.fov = fov
+	if fov then
+		setup.fov = calc_fov(fov, setup.aspectRatio)
 	end
 
 	if GB_GLOBALS.bNoRecoil and player:GetPropInt("m_nForceTauntCam") == 0 then
@@ -62,6 +68,12 @@ local function cmd_SetThirdPersonOption(args, num_args)
 	local option = tostring(args[1])
 	local value = tonumber(args[2])
 	thirdperson_options[option] = value
+end
+
+function visuals.unload()
+	visuals = nil
+	thirdperson_enabled = nil
+	thirdperson_options = nil
 end
 
 GB_GLOBALS.RegisterCommand("visuals->fov->set", "Changes fov | args: new fov (number)", 1, cmd_ChangeFOV)

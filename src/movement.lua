@@ -1,6 +1,11 @@
 local movement = {}
 local bhop_enabled = true
 
+function movement.unload()
+	movement = nil
+	bhop_enabled = nil
+end
+
 ---@param usercmd UserCmd
 local function CreateMove(usercmd)
 	local localplayer = entities:GetLocalPlayer()
@@ -10,9 +15,9 @@ local function CreateMove(usercmd)
 	local class = localplayer:GetPropInt("m_PlayerClass", "m_iClass")
 	if not GB_GLOBALS.bIsStacRunning and bhop_enabled and class ~= 1 then
 		local jump = (usercmd.buttons & IN_JUMP) ~= 0
-		if (ground and jump) then
+		if ground and jump then
 			usercmd.buttons = usercmd.buttons | IN_JUMP
-		elseif not ground then
+		elseif not ground and jump then
 			usercmd.buttons = usercmd.buttons & ~IN_JUMP
 		end
 	end

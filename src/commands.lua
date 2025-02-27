@@ -1,6 +1,11 @@
 local m_commands = {}
 local m_prefix = "gb"
 
+callbacks.Register("Unload", "UNLOAD garlic bread commands", function ()
+	m_prefix = nil
+	m_commands = nil
+end)
+
 --- If no additional param other than cmdname, the command has no args
 ---@param cmdname string
 ---@param help string

@@ -263,5 +263,26 @@ local function cmd_ToggleTickShift()
 	printc(150, 255, 150, 255, "Tick shifting is now " .. (m_enabled and "enabled" or "disabled"))
 end
 
+local function unload()
+	NEW_COMMANDS_SIZE = nil
+	BACKUP_COMMANDS_SIZE = nil
+	SIGNONSTATE_TYPE = nil
+	CLC_MOVE_TYPE = nil
+	charged_ticks = nil
+	max_ticks = nil
+	last_key_tick = nil
+	next_passive_tick = nil
+	m_enabled = nil
+	shooting = nil
+	warping, recharging = nil, nil
+	font = nil
+	m_localplayer_speed, m_bIsRED = nil, nil
+	m_bIsRED = nil
+	m_settings = nil
+	tickshift = nil
+end
+
+tickshift.unload = unload
+
 GB_GLOBALS.RegisterCommand("tickshift->toggle", "Toggles tickshifting (warp, recharge)", 0, cmd_ToggleTickShift)
 return tickshift

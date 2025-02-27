@@ -2,6 +2,12 @@ local clc_RespondCvarValue = 13
 local SIGNONSTATE_TYPE = 6
 local m_bEnabled = true
 
+callbacks.Register("Unload", "UNLOAD garlic bread anticheat", function ()
+	clc_RespondCvarValue = nil
+	SIGNONSTATE_TYPE = nil
+	m_bEnabled = nil
+end)
+
 ---@param msg NetMessage
 local function AntiCheat(msg)
 	if (not m_bEnabled) then return true end

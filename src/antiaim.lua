@@ -4,6 +4,7 @@ local antiaim = {}
 local m_bEnabled = false
 local m_bPitchEnabled = false
 local m_realyaw, m_fakeyaw, m_realpitch, m_fakepitch = 0, 0, 0, 0
+local m_font = draw.CreateFont("TF2 BUILD", 12, 1000)
 
 ---@param usercmd UserCmd
 function antiaim.CreateMove(usercmd)
@@ -41,6 +42,10 @@ end
 
 function antiaim.unload()
 	antiaim = nil
+	m_bEnabled = nil
+	m_bPitchEnabled = nil
+	m_realyaw, m_fakeyaw, m_realpitch, m_fakepitch = nil, nil, nil, nil
+	m_font = nil
 end
 
 function antiaim.Draw()
@@ -57,6 +62,7 @@ function antiaim.Draw()
 
 	local startpos = origin
 	local endpos = nil
+	local line_size = 25
 
 	local viewangle = engine:GetViewAngles().y
 
@@ -65,7 +71,7 @@ function antiaim.Draw()
 	real_direction = Vector3(math.cos(math.rad(real_yaw)), math.sin(math.rad(real_yaw)))
 	fake_direction = Vector3(math.cos(math.rad(fake_yaw)), math.sin(math.rad(fake_yaw)))
 
-	endpos = origin + (fake_direction * 10)
+	endpos = origin + (fake_direction * line_size)
 
 	local startpos_screen = client.WorldToScreen(startpos)
 	if (not startpos_screen) then return end
@@ -75,14 +81,20 @@ function antiaim.Draw()
 	--- fake yaw
 	draw.Color(255, 150, 150, 255)
 	draw.Line(startpos_screen[1], startpos_screen[2], endpos_screen[1], endpos_screen[2])
+	draw.SetFont(m_font)
+	draw.Color(255, 255, 255, 255)
+	draw.TextShadow(endpos_screen[1], endpos_screen[2], "fake yaw")
 
 	--- real yaw
 	draw.Color(150, 255, 150, 255)
-	endpos = origin + (real_direction * 10)
+	endpos = origin + (real_direction * line_size)
 	endpos_screen = client.WorldToScreen(endpos)
 	if (not endpos_screen) then return end
 
 	draw.Line(startpos_screen[1], startpos_screen[2], endpos_screen[1], endpos_screen[2])
+	draw.Color(255, 255, 255, 255)
+	draw.SetFont(m_font)
+	draw.TextShadow(endpos_screen[1], endpos_screen[2], "real yaw")
 end
 
 local function cmd_toggle_aa()

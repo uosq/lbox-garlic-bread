@@ -55,6 +55,7 @@ local function Draw()
    if not m_enabled then return end
    if not GB_GLOBALS.bSpectated then return end
    if not m_players then return end
+   if engine:IsGameUIVisible() or engine:Con_IsVisible() then return end
 
    local width, height = draw.GetScreenSize()
    local centerx, centery = math.floor(width * 0.5), math.floor(height * 0.5)
@@ -98,5 +99,15 @@ end
 
 GB_GLOBALS.RegisterCommand("spectators->toggle", "Toggles the spectator list", 0, CMD_ToggleSpecList)
 GB_GLOBALS.RegisterCommand("spectators->sety", "Changes the starting Y position (percentage) of your screen, args: new y (number 0 to 1)", 1, CMD_SetStartY)
+
+feature.unload = function()
+   feature = nil
+   m_enabled = nil
+   m_starty = nil
+   m_players = nil
+   m_font = nil
+   m_unformattedstr = nil
+   OBS_MODE = nil
+end
 
 return feature

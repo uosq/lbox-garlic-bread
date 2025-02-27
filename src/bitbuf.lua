@@ -121,3 +121,14 @@ function CLC_RespondCvarValue:WriteToBitBuffer(buffer, cvarName, cvarValue)
 	buffer:Reset()
 	buffer:SetCurBit(MSG_SIZE)
 end
+
+callbacks.Register("Unload", "UNLOAD garlic bread bitbuf", function ()
+	NEW_COMMANDS_SIZE = nil
+	BACKUP_COMMANDS_SIZE = nil
+	MSG_SIZE = nil
+	WORD_SIZE = nil
+	clc_Move = nil
+	NET_SetConVar = nil
+	CLC_Move = nil
+	CLC_RespondCvarValue = nil
+end)

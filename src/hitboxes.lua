@@ -158,4 +158,8 @@ local CLASS_HITBOXES = {
 	},
 }
 
+callbacks.Register("Unload", "UNLOAD garlic bread hitboxes", function ()
+	CLASS_HITBOXES = nil
+end)
+
 return CLASS_HITBOXES

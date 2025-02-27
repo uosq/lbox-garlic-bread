@@ -160,4 +160,13 @@ local req = {}
 
 req.CreateMove = CreateMove
 req.FireGameEvent = FireGameEvent
+
+function req.unload()
+   req = nil
+   binds = nil
+   last_pressed_button_tick = nil
+   last_id = nil
+   classes = nil
+end
+
 return req

@@ -112,6 +112,32 @@ local SENTRY_CLASS, DISPENSER_CLASS, TELEPORTER_CLASS =
 local MVM_MONEY_CLASS = "CCurrencyPack"
 local VIEWMODEL_ARM_CLASS = "CTFViewModel"
 
+function chams.unload()
+	chams_materials = nil
+	m_szMaterialMode = nil
+	COLORS = nil
+	chams = nil
+	m_bEnabled = nil
+	m_nUpdateInterval = nil
+	m_bDrawOnEnemyOnly = nil
+	m_bDrawOnVisibleOnly = nil
+	m_bDrawOriginalPlayerMaterial = nil
+	m_bDrawOriginalViewmodelArmMaterial = nil
+	m_bIgnoreDisguisedSpy = nil
+	m_bDrawOn = nil
+	localplayer_index = nil
+	render = nil
+	entities = nil
+	string = nil
+	playerlist = nil
+	models = nil
+	WEARABLES_CLASS = nil
+	TEAM_RED = nil
+	MVM_MONEY_CLASS = nil
+	VIEWMODEL_ARM_CLASS = nil
+	SENTRY_CLASS, DISPENSER_CLASS, TELEPORTER_CLASS = nil, nil, nil
+end
+
 ---@param r integer
 ---@param g integer
 ---@param b integer

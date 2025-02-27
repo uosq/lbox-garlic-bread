@@ -10,3 +10,6 @@ local function Background()
 end
 
 callbacks.Register("CreateMove", "CM garlic bread background", Background)
+callbacks.Register("Unload", "UNLOAD garlic bread background", function ()
+	Players, Sentries, Dispensers, Teleporters = nil, nil, nil, nil
+end)

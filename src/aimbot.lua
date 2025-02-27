@@ -1,12 +1,12 @@
-local aimbot_mode = { plain = 1, smooth = 2, silent = 3 }
+local aimbot_mode = { plain = 1, smooth = 2, silent = 3, assistance = 4 }
 
 local settings = {
 	fov = 10,
 	key = E_ButtonCode.KEY_LSHIFT,
 	autoshoot = true,
-	mode = aimbot_mode.silent,
+	mode = aimbot_mode.assistance,
 	lock_aim = true,
-	smooth_value = 10, --- lower value, smoother aimbot (10 = very smooth, 100 = basically plain aimbot)
+	smooth_value = 3, --- lower value, smoother aimbot (10 = very smooth, 100 = basically plain aimbot)
 	auto_spinup = true,
 	aimfov = true,
 
@@ -38,7 +38,7 @@ local settings = {
 	},
 }
 
-local m_bReadyToBackstab = false
+local bReadyToBackstab = false
 
 ---@type Entity?, Entity?, integer?
 local localplayer, weapon, m_team = nil, nil, nil
@@ -186,7 +186,7 @@ local function RunMelee(usercmd)
 
 			if entity_team ~= m_team and entity:IsAlive() then
 				if weapon and weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_KNIFE and settings.autobackstab then
-					if m_bReadyToBackstab then
+					if bReadyToBackstab then
 						MakeWeaponShoot(usercmd, index)
 					end
 
@@ -202,6 +202,18 @@ local function RunMelee(usercmd)
 		end
 	end
 	return false
+end
+
+--[[
+local function calc_fov(fov, aspect_ratio)
+	return math.deg(math.atan(math.tan(math.rad(fov) * 0.5) * aspect_ratio)) * 2
+end]]
+
+local function calc_fov(fov, aspect_ratio)
+	local halfanglerad = fov * (0.5 * math.pi / 180)
+	local t = math.tan(halfanglerad) * (aspect_ratio / (4/3))
+	local ret = (180 / math.pi) * math.atan(t)
+	return ret * 2
 end
 
 ---@param usercmd UserCmd
@@ -234,7 +246,7 @@ local function CreateMove(usercmd)
 	--- try to make stac dont ban us :3
 	local m_AimbotMode = GB_GLOBALS.bIsStacRunning and aimbot_mode.smooth or settings.mode
 	local m_SmoothValue = GB_GLOBALS.bIsStacRunning and 20 or settings.smooth_value
-	local viewfov = localplayer:InCond(E_TFCOND.TFCond_Zoomed) and 20 or GB_GLOBALS.flCustomFOV
+	local viewfov =  calc_fov(localplayer:InCond(E_TFCOND.TFCond_Zoomed) and 20 or GB_GLOBALS.flCustomFOV, width/height) --localplayer:InCond(E_TFCOND.TFCond_Zoomed) and 20 or GB_GLOBALS.flCustomFOV
 	local m_Fov = settings.fov * (math.tan(math.rad(viewfov / 2)) / math.tan(math.rad(45)))
 
 	local shoot_pos = GetShootPosition()
@@ -381,9 +393,6 @@ local function CreateMove(usercmd)
 
 	if best_angle then
 		local smoothed = engine:GetViewAngles() + vecMultiply(best_angle, (m_SmoothValue * 0.01 --[[/100]]))
-		if can_shoot then
-			usercmd.viewangles = usercmd.viewangles + (m_AimbotMode == aimbot_mode.smooth and smoothed or best_angle)
-		end
 
 		if m_AimbotMode == aimbot_mode.plain and can_shoot then
 			local angle = engine:GetViewAngles() + best_angle
@@ -391,16 +400,20 @@ local function CreateMove(usercmd)
 		elseif m_AimbotMode == aimbot_mode.smooth then
 			engine.SetViewAngles(EulerAngles(smoothed:Unpack()))
 			usercmd.viewangles = smoothed
+		elseif m_AimbotMode == aimbot_mode.assistance and (usercmd.mousedx ~= 0 or usercmd.mousedy ~= 0) then
+			usercmd.viewangles = smoothed
+			engine.SetViewAngles(EulerAngles(smoothed:Unpack()))
+		elseif m_AimbotMode == aimbot_mode.silent then
+			usercmd.viewangles = usercmd.viewangles + best_angle
 		end
 
 		if can_shoot then
-			if m_AimbotMode ~= aimbot_mode.smooth then
-				usercmd.buttons = usercmd.buttons | IN_ATTACK
-			else
+			if m_AimbotMode == aimbot_mode.smooth or m_AimbotMode == aimbot_mode.assistance then
 				if looking_at_target then
 					usercmd.buttons = usercmd.buttons | IN_ATTACK
 				end
-
+			else
+				usercmd.buttons = usercmd.buttons | IN_ATTACK
 			end
 			GB_GLOBALS.bIsAimbotShooting = true
 			GB_GLOBALS.nAimbotTarget = target
@@ -415,7 +428,7 @@ end
 ---@param stage E_ClientFrameStage
 local function FrameStageNotify(stage)
 	if stage == E_ClientFrameStage.FRAME_NET_UPDATE_END and localplayer and weapon then
-		m_bReadyToBackstab = weapon:GetPropBool("m_bReadyToBackstab") or false
+		bReadyToBackstab = weapon:GetPropBool("bReadyToBackstab") or false
 	end
 end
 
@@ -425,6 +438,7 @@ local function Draw()
 
 	if localplayer and localplayer:IsAlive() and settings.fov <= 89 then
 		local viewfov = GB_GLOBALS.flCustomFOV
+		viewfov = calc_fov(viewfov, width/height)
 		local aimfov = settings.fov * (math.tan(math.rad(viewfov / 2)) / math.tan(math.rad(45)))
 		if (not aimfov or not viewfov) then return end --- wtf why is it a "number?"
 		local radius = (math.tan(math.rad(aimfov)/2))/(math.tan(math.rad(viewfov)/2)) * width
@@ -476,16 +490,50 @@ local function cmd_ToggleAimFov()
 	settings.aimfov = not settings.aimfov
 end
 
-GB_GLOBALS.RegisterCommand("aimbot->change_mode", "Change aimbot mode | args: mode (plain, smooth or silent)", 1, cmd_ChangeAimbotMode)
-GB_GLOBALS.RegisterCommand("aimbot->change_key", "Changes aimbot key | args: key (w, f, g, ...)", 1, cmd_ChangeAimbotKey)
-GB_GLOBALS.RegisterCommand("aimbot->change_fov", "Changes aimbot fov | args: fov (number)", 1, cmd_ChangeAimbotFov)
+local function cmd_ChangeAimSmoothness(args, num_args)
+	if not args or #args ~= num_args then return end
+	local new_value = tonumber(args[1])
+	if not new_value then printc(255, 150, 150, 255, "Invalid value!") return end
+	settings.smooth_value = new_value
+end
+
+
+GB_GLOBALS.RegisterCommand("aimbot->change->mode", "Change aimbot mode | args: mode (plain, smooth or silent)", 1, cmd_ChangeAimbotMode)
+GB_GLOBALS.RegisterCommand("aimbot->change->key", "Changes aimbot key | args: key (w, f, g, ...)", 1, cmd_ChangeAimbotKey)
+GB_GLOBALS.RegisterCommand("aimbot->change->fov", "Changes aimbot fov | args: fov (number)", 1, cmd_ChangeAimbotFov)
 GB_GLOBALS.RegisterCommand("aimbot->ignore->toggle", "Toggles a aimbot ignore option (like ignore cloaked) | args: option name (string)", 1, cmd_ChangeAimbotIgnore)
 GB_GLOBALS.RegisterCommand("aimbot->toggle->aimlock", "Makes the aimbot not stop looking at the targe when shooting", 0, cmd_ToggleAimLock)
 GB_GLOBALS.RegisterCommand("aimbot->toggle->fovindicator", "Toggles aim fov circle", 0, cmd_ToggleAimFov)
+GB_GLOBALS.RegisterCommand("aimbot->change->smoothness", "Changes the smoothness value | args: new value (number, 0 to 1)", 1, cmd_ChangeAimSmoothness)
 
 local aimbot = {}
 aimbot.CreateMove = CreateMove
 aimbot.FrameStageNotify = FrameStageNotify
 aimbot.Draw = Draw
 
+local function unload()
+	aimbot_mode = nil
+	settings = nil
+	bReadyToBackstab = nil
+	localplayer, weapon, m_team = nil, nil, nil
+	width, height = nil, nil
+	CLASS_HITBOXES = nil
+	VISIBLE_FRACTION = nil
+	lastFire = nil
+	nextAttack = nil
+	old_weapon = nil
+	HEADSHOT_WEAPONS_INDEXES = nil
+	ENGINEER_CLASS = nil
+	MAX_UPGRADE_LEVEL = nil
+	BUILDINGS = nil
+	TraceLine = nil
+	sqrt = nil
+	atan = nil
+	PI = nil
+	RADPI = nil
+	vecMultiply = nil
+	GB_GLOBALS.CanWeaponShoot = nil
+end
+
+aimbot.unload = unload
 return aimbot
