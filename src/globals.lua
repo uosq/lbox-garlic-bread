@@ -12,12 +12,7 @@ GB_GLOBALS = {
 	nAspectRatio = 1.78,
 
 	bNoRecoil = true,
-
 	bBhopEnabled = false,
-
 	bSpectated = false,
+	bThirdperson = false,
 }
-
-callbacks.Register("Unload", "UNLOAD garlic bread globals", function ()
-	GB_GLOBALS = nil
-end)

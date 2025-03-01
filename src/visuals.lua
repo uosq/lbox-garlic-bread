@@ -46,11 +46,9 @@ local function FrameStageNotify(stage)
 	if (not player) then return end
 	if (stage == E_ClientFrameStage.FRAME_NET_UPDATE_START) then
 		player:SetPropBool(thirdperson_enabled, "m_nForceTauntCam")
+		GB_GLOBALS.bThirdperson = thirdperson_enabled
 	end
 end
-
-visuals.RenderView = RenderView
-visuals.FrameStageNotify = FrameStageNotify
 
 local function cmd_ChangeFOV(args)
 	if (not args or #args == 0 or not args[1]) then return end
@@ -79,4 +77,7 @@ end
 GB_GLOBALS.RegisterCommand("visuals->fov->set", "Changes fov | args: new fov (number)", 1, cmd_ChangeFOV)
 GB_GLOBALS.RegisterCommand("visuals->thirdperson->toggle", "Toggles third person", 0, cmd_ToggleThirdPerson)
 GB_GLOBALS.RegisterCommand("visuals->thidperson->set", "Sets the thirdperson option | args: option name (up, right, forward), new value (number)", 2, cmd_SetThirdPersonOption)
+
+visuals.RenderView = RenderView
+visuals.FrameStageNotify = FrameStageNotify
 return visuals

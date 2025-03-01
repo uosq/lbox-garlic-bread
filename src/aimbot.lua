@@ -4,11 +4,11 @@ local settings = {
 	fov = 10,
 	key = E_ButtonCode.KEY_LSHIFT,
 	autoshoot = true,
-	mode = aimbot_mode.assistance,
-	lock_aim = true,
-	smooth_value = 3, --- lower value, smoother aimbot (10 = very smooth, 100 = basically plain aimbot)
+	mode = aimbot_mode.silent,
+	lock_aim = false,
+	smooth_value = 10, --- lower value, smoother aimbot (10 = very smooth, 100 = basically plain aimbot)
 	auto_spinup = true,
-	aimfov = true,
+	aimfov = false,
 
 	--- should aimbot run when using one of them?
 	hitscan = true,
@@ -27,7 +27,7 @@ local settings = {
 		bonked = true,
 		friends = false,
 		deadringer = false,
-		spectators = false,
+		spectators = true,
 	},
 
 	aim = {
@@ -166,7 +166,7 @@ local function RunMelee(usercmd)
 	if weapon and weapon:IsMeleeWeapon() then
 		local swing_trace = weapon:DoSwingTrace()
 
-		if swing_trace and swing_trace.entity and swing_trace.fraction <= 0.95 then
+		if swing_trace and swing_trace.entity and swing_trace.fraction >= VISIBLE_FRACTION then
 			local entity = swing_trace.entity
 			local entity_team = entity:GetTeamNumber()
 			local index = entity:GetIndex()
@@ -533,6 +533,7 @@ local function unload()
 	RADPI = nil
 	vecMultiply = nil
 	GB_GLOBALS.CanWeaponShoot = nil
+	aimbot = nil
 end
 
 aimbot.unload = unload

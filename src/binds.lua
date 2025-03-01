@@ -1,3 +1,5 @@
+local json = require("src.json")
+
 local binds = {
    key_press = {
       --[[
@@ -15,11 +17,12 @@ local binds = {
          command = "dgfiogjdifjg"
       }
       ]]
-   }
+   },
+
+   last_id = 0
 }
 
 local last_pressed_button_tick = 0
-local last_id = 0
 
 local classes = {
    scout = 1,
@@ -39,6 +42,7 @@ end
 
 ---@param usercmd UserCmd
 local function CreateMove(usercmd)
+   if engine.IsChatOpen() or engine.Con_IsVisible() or engine.IsGameUIVisible() then return end
    for _, bind in pairs(binds.key_press) do
       local key = bind.key
       local command = bind.command
@@ -75,7 +79,7 @@ local function MakeKPBind(words)
    local key = table.remove(words, 1)
    local selected_key = E_ButtonCode["KEY_" .. string.upper(key)]
    local command = table.concat(words, " ")
-   local id = last_id + 1
+   local id = binds.last_id + 1
    local new_bind = {
       key = selected_key,
       key_str = key,
@@ -83,14 +87,14 @@ local function MakeKPBind(words)
       id = id,
    }
    binds.key_press[#binds.key_press + 1] = new_bind
-   last_id = id
+   binds.last_id = id
 end
 
 local function MakeClassBind(words)
    local class = table.remove(words, 1)
    local selected_class = classes[tostring(class)]
    local command = table.concat(words)
-   local id = last_id + 1
+   local id = binds.last_id + 1
    local new_bind = {
       class = selected_class,
       class_str = class,
@@ -98,7 +102,7 @@ local function MakeClassBind(words)
       id = id
    }
    binds.class_change[#binds.class_change + 1] = new_bind
-   last_id = id
+   binds.last_id = id
 end
 
 --- gb binds->create event name what it does
@@ -141,20 +145,66 @@ local function CMD_RemoveBind(args, num_args)
    local id = tonumber(args[1])
    if id then
       for _, bindtype in pairs(binds) do
-         for i, bind in ipairs(bindtype) do
-            if bind.id == id then
-               table.remove(bindtype, i)
-               printc(150, 255, 150, 255, "Removed bind successfully!")
-               break
+
+         if type(bindtype) == "table" then
+            for i, bind in ipairs(bindtype) do
+               if bind.id == id then
+                  table.remove(bindtype, i)
+                  printc(150, 255, 150, 255, "Removed bind successfully!")
+                  break
+               end
             end
          end
+
       end
    end
+end
+
+local function CMD_SaveBinds(args, num_args)
+   if not args or #args ~= num_args then return end
+   if not args[1] then
+      printc(255, 0, 0, 255, "Invalid name!")
+      return
+   end
+   local encoded = json.encode(binds)
+   local filename = tostring(args[1])
+   local str = string.format("Garlic Bread/%s.json", filename)
+   filesystem.CreateDirectory("Garlic Bread")
+   io.output(str)
+   io.write(encoded)
+   io.flush()
+   io.close()
+   printc(150, 255, 150, 255, "Saved binds to " .. filename)
+end
+
+local function CMD_LoadBinds(args, num_args)
+   if not args or #args ~= num_args then return end
+   local filename = string.format("Garlic Bread/%s.json", tostring(args[1]))
+   local file = io.open(filename, "r")
+   if file then
+      local str = file:read("a")
+      local decoded = json.decode(str)
+      if decoded then
+         binds = decoded
+         printc(150, 150, 255, 255, "Binds loaded!")
+      end
+      file:close()
+   end
+end
+
+local function CMD_PrintAllSavedBinds()
+   filesystem.EnumerateDirectory("Garlic Bread/*.json", function(filename, attributes)
+      local name = filename:gsub(".json", "")
+      print(name)
+   end)
 end
 
 GB_GLOBALS.RegisterCommand("binds->create", "Creates a new bind", -1, CMD_CreateBind)
 GB_GLOBALS.RegisterCommand("binds->getall", "Prints all bind IDs and their commands", 0, CMD_GetAllBindIDs)
 GB_GLOBALS.RegisterCommand("binds->remove", "Removes a bind using a id | args: id (number)", 1, CMD_RemoveBind)
+GB_GLOBALS.RegisterCommand("binds->save", "Saves binds to a file | args: file name (string)", 1, CMD_SaveBinds)
+GB_GLOBALS.RegisterCommand("binds->load", "Loads binds from a file | args: file name (string)", 1, CMD_LoadBinds)
+GB_GLOBALS.RegisterCommand("binds->getallfiles", "Prints all the saved files", 0, CMD_PrintAllSavedBinds)
 
 local req = {}
 
@@ -165,7 +215,6 @@ function req.unload()
    req = nil
    binds = nil
    last_pressed_button_tick = nil
-   last_id = nil
    classes = nil
 end
 
