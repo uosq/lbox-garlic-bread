@@ -6,6 +6,7 @@ local m_nTicks = 21
 local m_nChokedTicks = 0
 local m_bWarping = false
 
+local m_bIndicator = true
 local m_vecIndicatorPos = nil
 local m_angIndicatorAngles = nil
 local m_bIndicatorInFirstPerson = false
@@ -63,7 +64,7 @@ function fakelag.CreateMove(usercmd)
 		end
 	end
 
-	if GB_GLOBALS.bThirdperson or m_bIndicatorInFirstPerson then
+	if m_bIndicator and (GB_GLOBALS.bThirdperson or m_bIndicatorInFirstPerson) then
 		local localplayer = entities:GetLocalPlayer()
 		if not localplayer then return end
 
@@ -105,7 +106,7 @@ end
 
 ---@param context DrawModelContext
 function fakelag.DrawModel(context)
-	if not m_bEnabled then return end
+	if not m_bEnabled or not m_bIndicator then return end
 	local entity = context:GetEntity()
 
 	if entity == nil and m_hIndicator and m_hIndicator:ShouldDraw() and context:GetModelName() == m_sModelName then
@@ -125,6 +126,16 @@ end
 local function CMD_ToggleFakeLag()
 	m_bEnabled = not m_bEnabled
 	printc(150, 150, 255, 255, "Fake lag is now " .. (m_bEnabled and "enabled" or "disabled"))
+end
+
+local function CMD_ToggleFakeLagFirstPerson()
+	m_bIndicatorInFirstPerson = not m_bIndicatorInFirstPerson
+	printc(150, 150, 255, 255, "Fake lag indicator in 1st person is now " .. (m_bIndicatorInFirstPerson and "enabled" or "disabled"))
+end
+
+local function CMD_ToggleFakeLagIndicator()
+	m_bIndicator = not m_bIndicator
+	printc(150, 150, 255, 255, "Fake lag indicator is now " .. (m_bIndicator and "enabled" or "disabled"))
 end
 
 local function CMD_SetChokeTicks(args, num_args)
@@ -156,5 +167,7 @@ end
 
 GB_GLOBALS.RegisterCommand("fakelag->toggle", "Toggles fakelag", 0, CMD_ToggleFakeLag)
 GB_GLOBALS.RegisterCommand("fakelag->set->ticks", "Sets the amount of ticks to choke | args: new value (number)", 1, CMD_SetChokeTicks)
+GB_GLOBALS.RegisterCommand("fakelag->toggle->indicator", "Toggles the fakelag indicator", 0, CMD_ToggleFakeLagIndicator)
+GB_GLOBALS.RegisterCommand("fakelag->toggle->indicator_1st_person", "Toggles the fakelag indicator to appear in first person", 0, CMD_ToggleFakeLagFirstPerson)
 
 return fakelag
