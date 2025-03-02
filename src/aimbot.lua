@@ -156,6 +156,7 @@ end
 ---@param targetIndex integer
 local function MakeWeaponShoot(usercmd, targetIndex)
 	usercmd.buttons = usercmd.buttons | IN_ATTACK
+	usercmd.buttons = usercmd.buttons | IN_LEFT
 	GB_GLOBALS.nAimbotTarget = targetIndex
 	GB_GLOBALS.bIsAimbotShooting = true
 end
@@ -246,7 +247,8 @@ local function CreateMove(usercmd)
 	--- try to make stac dont ban us :3
 	local m_AimbotMode = GB_GLOBALS.bIsStacRunning and aimbot_mode.smooth or settings.mode
 	local m_SmoothValue = GB_GLOBALS.bIsStacRunning and 20 or settings.smooth_value
-	local viewfov =  calc_fov(localplayer:InCond(E_TFCOND.TFCond_Zoomed) and 20 or GB_GLOBALS.flCustomFOV, width/height) --localplayer:InCond(E_TFCOND.TFCond_Zoomed) and 20 or GB_GLOBALS.flCustomFOV
+	local m_nAspectRatio = (GB_GLOBALS.nAspectRatio == 0 and GB_GLOBALS.nPreAspectRatio or GB_GLOBALS.nAspectRatio)
+	local viewfov =  calc_fov(localplayer:InCond(E_TFCOND.TFCond_Zoomed) and 20 or GB_GLOBALS.flCustomFOV, m_nAspectRatio)
 	local m_Fov = settings.fov * (math.tan(math.rad(viewfov / 2)) / math.tan(math.rad(45)))
 
 	local shoot_pos = GetShootPosition()
@@ -391,7 +393,7 @@ local function CreateMove(usercmd)
 
 	local can_shoot = CanWeaponShoot() or settings.lock_aim -- if autoshoot is off and player is trying to shoot, we aim for them
 
-	if best_angle then
+	if best_angle and target then
 		local smoothed = engine:GetViewAngles() + vecMultiply(best_angle, (m_SmoothValue * 0.01 --[[/100]]))
 
 		if m_AimbotMode == aimbot_mode.plain and can_shoot then
@@ -410,13 +412,15 @@ local function CreateMove(usercmd)
 		if can_shoot then
 			if m_AimbotMode == aimbot_mode.smooth or m_AimbotMode == aimbot_mode.assistance then
 				if looking_at_target then
-					usercmd.buttons = usercmd.buttons | IN_ATTACK
+					--usercmd.buttons = usercmd.buttons | IN_ATTACK
+					MakeWeaponShoot(usercmd, target)
 				end
 			else
-				usercmd.buttons = usercmd.buttons | IN_ATTACK
+				--usercmd.buttons = usercmd.buttons | IN_ATTACK
+				MakeWeaponShoot(usercmd, target)
 			end
-			GB_GLOBALS.bIsAimbotShooting = true
-			GB_GLOBALS.nAimbotTarget = target
+			--GB_GLOBALS.bIsAimbotShooting = true
+			--GB_GLOBALS.nAimbotTarget = target
 		end
 	end
 
@@ -438,7 +442,8 @@ local function Draw()
 
 	if localplayer and localplayer:IsAlive() and settings.fov <= 89 then
 		local viewfov = GB_GLOBALS.flCustomFOV
-		viewfov = calc_fov(viewfov, width/height)
+		local aspectratio = (GB_GLOBALS.nAspectRatio == 0 and GB_GLOBALS.nPreAspectRatio or GB_GLOBALS.nAspectRatio)
+		viewfov = calc_fov(viewfov, aspectratio)
 		local aimfov = settings.fov * (math.tan(math.rad(viewfov / 2)) / math.tan(math.rad(45)))
 		if (not aimfov or not viewfov) then return end --- wtf why is it a "number?"
 		local radius = (math.tan(math.rad(aimfov)/2))/(math.tan(math.rad(viewfov)/2)) * width

@@ -243,7 +243,8 @@ function chams.DrawModel(context)
 	end
 
 	local entity = context:GetEntity()
-	if (not entity) then return end
+	if not entity or entity == nil then return end
+
 	local index = entity:GetIndex()
 	local class = entity:GetClass()
 	if (not index or not class) then return end
@@ -314,7 +315,7 @@ end
 
 local function CMD_ToggleVisibleOnly()
   m_bDrawOnVisibleOnly = not m_bDrawOnVisibleOnly
-  printc(150, 255, 150, 255, "Chams will draw only on " .. (m_bDrawOnVisibleOnly and "visible" or "invisible") .. " entities")
+  printc(150, 255, 150, 255, "Chams will draw on " .. (m_bDrawOnVisibleOnly and "visible" or "invisible") .. " entities")
 end
 
 local function CMD_ToggleDrawOriginalPlayerMat()
@@ -329,7 +330,7 @@ end
 
 local function CMD_ToggleDrawOnEnemyOnly()
   m_bDrawOnEnemyOnly = not m_bDrawOnEnemyOnly
-  printc(150, 255, 150, 255, "Chams will " .. (m_bDrawOnEnemyOnly and "draw only the visible enemies" or "not draw the invisible enemies"))
+  printc(150, 255, 150, 255, "Chams will " .. (m_bDrawOnEnemyOnly and "draw only" or "not only draw") .. " the enemies")
 end
 
 local function CMD_SetUpdateInterval(args, num_args)

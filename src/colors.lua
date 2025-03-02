@@ -7,6 +7,7 @@ local COLORS = {
 	BACKTRACK = { 50, 166, 168, 50 },
 	ANTIAIM = { 168, 50, 50, 50 },
 	PRIORITY = { 238, 255, 0, 50 },
+	FAKELAG = {255, 179, 0, 50},
 
 	LOCALPLAYER = { 156, 66, 245, 50 },
 	VIEWMODEL_ARM = { 210, 210, 255, 150 },

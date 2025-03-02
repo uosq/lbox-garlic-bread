@@ -4,6 +4,7 @@ local m_prefix = "gb"
 callbacks.Register("Unload", "UNLOAD garlic bread commands", function ()
 	m_prefix = nil
 	m_commands = nil
+	callbacks.Unregister("SendStringCmd", "SSC garlic bread console commands")
 end)
 
 --- If no additional param other than cmdname, the command has no args
@@ -77,4 +78,6 @@ printc(255, 255, 255, 255, "You can use 'gb help' command to print all the conso
 
 GB_GLOBALS.RegisterCommand = RegisterCommand
 GB_GLOBALS.RunCommand = RunCommand
+
+callbacks.Unregister("SendStringCmd", "SSC garlic bread console commands")
 callbacks.Register("SendStringCmd", "SSC garlic bread console commands", SendStringCmd)

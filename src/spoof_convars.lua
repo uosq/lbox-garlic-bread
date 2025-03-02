@@ -3,7 +3,8 @@ local spoofed_cvars = {}
 local funcs = {}
 
 ---@param msg NetMessage
-function funcs.SendNetMsg(msg)
+---@param returnval {ret: boolean}
+function funcs.SendNetMsg(msg, returnval)
    if (msg:GetType() == clc_RespondCvarValue) then
       local bf = BitBuffer()
       bf:Reset()
@@ -19,7 +20,7 @@ function funcs.SendNetMsg(msg)
 
       bf:Delete()
    end
-   return true
+   returnval.ret = true
 end
 
 --- gb setsvar name value

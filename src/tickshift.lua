@@ -1,6 +1,3 @@
-local NEW_COMMANDS_SIZE = 4
-local BACKUP_COMMANDS_SIZE = 3
-
 local SIGNONSTATE_TYPE = 6
 local CLC_MOVE_TYPE = 9
 
@@ -146,20 +143,19 @@ local function HandleJoinServers(msg)
 end
 
 ---@param msg NetMessage
----@param reliable boolean
----@param isvoice boolean
-function tickshift.SendNetMsg(msg, reliable, isvoice)
+---@param returnval {ret: boolean}
+function tickshift.SendNetMsg(msg, returnval)
 	GB_GLOBALS.bWarping = false
 	GB_GLOBALS.bRecharging = false
 
 	--- return early if user disabled with console commands
-	if (not m_enabled) then return true end
+	if not m_enabled then return true end
 
 	if msg:GetType() == SIGNONSTATE_TYPE then
 		HandleJoinServers(msg)
 	end
 
-	if GB_GLOBALS.bIsStacRunning then return true end
+	if GB_GLOBALS.bIsStacRunning or GB_GLOBALS.bFakeLagEnabled then return true end
 
 	if engine.IsChatOpen() or engine.IsGameUIVisible() or engine.Con_IsVisible() then
 		return true
@@ -171,11 +167,9 @@ function tickshift.SendNetMsg(msg, reliable, isvoice)
 			HandleWarp(msg)
 		elseif HandleRecharge() then
 			GB_GLOBALS.bRecharging = true
-			return false
+			returnval.ret = false
 		end
 	end
-
-	return true
 end
 
 local function clamp(value, min, max)
@@ -185,7 +179,7 @@ end
 ---@param usercmd UserCmd
 function tickshift.CreateMove(usercmd)
 	if engine.IsChatOpen() or engine.IsGameUIVisible() or engine.Con_IsVisible()
-		or GB_GLOBALS.bIsStacRunning or not m_enabled then
+		or GB_GLOBALS.bIsStacRunning or not m_enabled or GB_GLOBALS.bFakeLagEnabled then
 		return
 	end
 
@@ -198,6 +192,7 @@ function tickshift.CreateMove(usercmd)
 	charged_ticks = clamp(charged_ticks, 0, max_ticks)
 
 	shooting = ((usercmd.buttons & IN_ATTACK) ~= 0 or GB_GLOBALS.bIsAimbotShooting) and GB_GLOBALS.CanWeaponShoot()
+
 	warping = input.IsButtonDown(m_settings.warp.send_key)
 	GB_GLOBALS.bWarping = warping
 	recharging = input.IsButtonDown(m_settings.warp.recharge_key)
@@ -217,6 +212,7 @@ function tickshift.Draw()
 		or (engine:IsTakingScreenshot() and gui.GetValue("clean screenshots") == 1)
 		or not m_enabled
 		or GB_GLOBALS.bIsStacRunning
+		or GB_GLOBALS.bFakeLagEnabled
 	then
 		return
 	end
@@ -264,8 +260,6 @@ local function cmd_ToggleTickShift()
 end
 
 local function unload()
-	NEW_COMMANDS_SIZE = nil
-	BACKUP_COMMANDS_SIZE = nil
 	SIGNONSTATE_TYPE = nil
 	CLC_MOVE_TYPE = nil
 	charged_ticks = nil

@@ -15,4 +15,5 @@ GB_GLOBALS = {
 	bBhopEnabled = false,
 	bSpectated = false,
 	bThirdperson = false,
+	bFakeLagEnabled = false,
 }

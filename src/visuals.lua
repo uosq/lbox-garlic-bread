@@ -68,6 +68,15 @@ local function cmd_SetThirdPersonOption(args, num_args)
 	thirdperson_options[option] = value
 end
 
+local function cmd_SetAspectRatio(args, num_args)
+	if not args or #args ~= num_args then return end
+	local newvalue = tonumber(args[1])
+	if newvalue then
+		GB_GLOBALS.nAspectRatio = newvalue
+		printc(150, 150, 255, 255, "Changed aspect ratio")
+	end
+end
+
 function visuals.unload()
 	visuals = nil
 	thirdperson_enabled = nil
@@ -77,6 +86,7 @@ end
 GB_GLOBALS.RegisterCommand("visuals->fov->set", "Changes fov | args: new fov (number)", 1, cmd_ChangeFOV)
 GB_GLOBALS.RegisterCommand("visuals->thirdperson->toggle", "Toggles third person", 0, cmd_ToggleThirdPerson)
 GB_GLOBALS.RegisterCommand("visuals->thidperson->set", "Sets the thirdperson option | args: option name (up, right, forward), new value (number)", 2, cmd_SetThirdPersonOption)
+GB_GLOBALS.RegisterCommand("visuals->aspectratio->set", "Changes the aspect ratio | args: new value (number)", 1, cmd_SetAspectRatio)
 
 visuals.RenderView = RenderView
 visuals.FrameStageNotify = FrameStageNotify

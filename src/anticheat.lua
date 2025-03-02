@@ -6,6 +6,7 @@ callbacks.Register("Unload", "UNLOAD garlic bread anticheat", function ()
 	clc_RespondCvarValue = nil
 	SIGNONSTATE_TYPE = nil
 	m_bEnabled = nil
+	callbacks.Unregister("SendNetMsg", "NETMSG garlic bread stac detector")
 end)
 
 ---@param msg NetMessage
