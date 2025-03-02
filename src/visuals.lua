@@ -34,11 +34,13 @@ local function RenderView(setup)
 		setup.angles = EulerAngles((setup.angles - punchangle):Unpack())
 	end
 
-	local viewangles = engine:GetViewAngles()
-	local forward, right, up = viewangles:Forward(), viewangles:Right(), viewangles:Up()
-	setup.origin = setup.origin + (right * thirdperson_options.right)
-	setup.origin = setup.origin + (forward * thirdperson_options.forward)
-	setup.origin = setup.origin + (up * thirdperson_options.up)
+	if thirdperson_enabled then
+		local viewangles = engine:GetViewAngles()
+		local forward, right, up = viewangles:Forward(), viewangles:Right(), viewangles:Up()
+		setup.origin = setup.origin + (right * thirdperson_options.right)
+		setup.origin = setup.origin + (forward * thirdperson_options.forward)
+		setup.origin = setup.origin + (up * thirdperson_options.up)
+	end
 end
 
 local function FrameStageNotify(stage)
@@ -60,9 +62,9 @@ local function cmd_ToggleThirdPerson()
 	printc(150, 255, 150, 255, "Thirdperson is now " .. (thirdperson_enabled and "enabled" or "disabled"))
 end
 
---- visuals->set_thirdperson up 200
 local function cmd_SetThirdPersonOption(args, num_args)
 	if not args or #args ~= num_args then return end
+	print(args[1], args[2])
 	local option = tostring(args[1])
 	local value = tonumber(args[2])
 	thirdperson_options[option] = value
