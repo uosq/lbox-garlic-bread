@@ -40,6 +40,16 @@ local m_settings = {
 
 local tickshift = {}
 
+---@param secs number
+local function TIME_TO_TICKS(secs)
+	return (0.5 * secs) / globals.TickInterval()
+end
+
+---@param ticks integer
+local function TICKS_TO_TIME(ticks)
+	return globals.TickInterval() * TIME_TO_TICKS(ticks)
+end
+
 local function CanChoke()
 	return clientstate:GetChokedCommands() < max_ticks
 end
@@ -108,6 +118,10 @@ local function HandlePassiveRecharge()
 	return false
 end
 
+local function clamp(value, min, max)
+	return math.min(math.max(value, min), max)
+end
+
 local function HandleRecharge()
 	if
 		(shooting and not m_settings.warp.recharge.while_shooting)
@@ -170,10 +184,6 @@ function tickshift.SendNetMsg(msg, returnval)
 			returnval.ret = false
 		end
 	end
-end
-
-local function clamp(value, min, max)
-	return math.min(math.max(value, min), max)
 end
 
 ---@param usercmd UserCmd

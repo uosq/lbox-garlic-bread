@@ -2,8 +2,7 @@
 local antiaim = {}
 
 local m_bEnabled = false
-local m_bPitchEnabled = false
-local m_realyaw, m_fakeyaw, m_realpitch, m_fakepitch = 0, 0, 0, 0
+local m_realyaw, m_fakeyaw = 0, 0
 local m_font = draw.CreateFont("TF2 BUILD", 12, 1000)
 
 ---@param usercmd UserCmd
@@ -26,16 +25,12 @@ function antiaim.CreateMove(usercmd)
 
 		local realyaw = view.y + (m_realyaw or 0)
 		local fakeyaw = view.y + (m_fakeyaw or 0)
-		local realpitch = m_bPitchEnabled and m_realpitch or view.x
-		local fakepitch = m_bPitchEnabled and m_fakepitch or view.x
 
 		local is_real_yaw_tick = usercmd.tick_count % 2 == 0
+		local yaw = is_real_yaw_tick and realyaw or fakeyaw
 
-		local pitch, yaw
-		pitch = is_real_yaw_tick and realpitch or fakepitch
-		yaw = is_real_yaw_tick and realyaw or fakeyaw
-
-		usercmd:SetViewAngles(pitch, yaw, 0)
+		usercmd.viewangles = Vector3(view.x, yaw, 0)
+		--usercmd:SetViewAngles(pitch, yaw, 0)
 		usercmd.sendpacket = not is_real_yaw_tick
 	end
 end
@@ -43,8 +38,7 @@ end
 function antiaim.unload()
 	antiaim = nil
 	m_bEnabled = nil
-	m_bPitchEnabled = nil
-	m_realyaw, m_fakeyaw, m_realpitch, m_fakepitch = nil, nil, nil, nil
+	m_realyaw, m_fakeyaw = nil, nil
 	m_font = nil
 end
 
@@ -97,6 +91,17 @@ function antiaim.Draw()
 	draw.TextShadow(endpos_screen[1], endpos_screen[2], "real yaw")
 end
 
+--- SetVAngles doesn't work
+function antiaim.FrameStageNotify(stage)
+	if stage == E_ClientFrameStage.FRAME_NET_UPDATE_START and m_bEnabled then
+		local localplayer = entities:GetLocalPlayer()
+		if not localplayer then return end
+		local viewangles = engine:GetViewAngles()
+		local angle = Vector3(viewangles.x, viewangles.y + m_realyaw, 0)
+		localplayer:SetVAngles(angle)
+	end
+end
+
 local function cmd_toggle_aa()
 	if (GB_GLOBALS.bIsStacRunning) then
 		printc(255, 0, 0, 255, "STAC is active! Won't change AA")
@@ -108,34 +113,22 @@ end
 
 local function cmd_set_options(args)
 	if (not args or #args == 0) then return end
-	if (not args[1] or not args[2] or not args[3]) then return end
+	if (not args[1] or not args[2]) then return end
 
 	local fake = args[1] == "fake"
 	local real = args[1] == "real"
-	local wants_yaw = args[2] == "yaw"
-	local wants_pitch = args[2] == "pitch"
-	local new_value = tonumber(args[3])
+	local new_value = tonumber(args[2])
 	if (not new_value) then print("Invalid value!") return end
 
 	--local key = "m_fl%s%s"
 	--local formatted = string.format(key, fake and "Fake" or "Real", wants_yaw and "Yaw" or "Pitch")
-	if (fake and wants_yaw) then
+	if fake then
 		m_fakeyaw = new_value
-	elseif (fake and not wants_pitch) then
-		m_fakepitch = new_value
-	elseif (real and wants_yaw) then
+	elseif real then
 		m_realyaw = new_value
-	elseif (real and wants_pitch) then
-		m_realpitch = new_value
 	end
 end
 
-local function cmd_toggle_pitch()
-	m_bPitchEnabled = not m_bPitchEnabled
-	printc(150, 255, 150, 255, "Anti aim pitch is now " .. (m_bPitchEnabled and "enabled" or "disabled"))
-end
-
-GB_GLOBALS.RegisterCommand("antiaim->change", "Changes antiaim's settings | args: fake or real (string), yaw or pitch (string), new value (number)", 3, cmd_set_options)
+GB_GLOBALS.RegisterCommand("antiaim->change", "Changes antiaim's yaw | args: fake or real (string), new value (number)", 2, cmd_set_options)
 GB_GLOBALS.RegisterCommand("antiaim->toggle", "Toggles antiaim", 0, cmd_toggle_aa)
-GB_GLOBALS.RegisterCommand("antiaim->toggle_pitch", "Toggles real and fake pitch from being added to viewangles", 0, cmd_toggle_pitch)
 return antiaim

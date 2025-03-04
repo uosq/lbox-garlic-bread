@@ -9,6 +9,7 @@ local settings = {
 	smooth_value = 10, --- lower value, smoother aimbot (10 = very smooth, 100 = basically plain aimbot)
 	auto_spinup = true,
 	aimfov = false,
+	epicstacbypass = true,
 
 	--- should aimbot run when using one of them?
 	hitscan = true,
@@ -156,7 +157,6 @@ end
 ---@param targetIndex integer
 local function MakeWeaponShoot(usercmd, targetIndex)
 	usercmd.buttons = usercmd.buttons | IN_ATTACK
-	usercmd.buttons = usercmd.buttons | IN_LEFT
 	GB_GLOBALS.nAimbotTarget = targetIndex
 	GB_GLOBALS.bIsAimbotShooting = true
 end
@@ -189,12 +189,11 @@ local function RunMelee(usercmd)
 				if weapon and weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_KNIFE and settings.autobackstab then
 					if bReadyToBackstab then
 						MakeWeaponShoot(usercmd, index)
+					else
+						GB_GLOBALS.nAimbotTarget = index
+						GB_GLOBALS.bIsAimbotShooting = false
+						return
 					end
-
-					--- dont run after this or it will try to butterknife
-					GB_GLOBALS.nAimbotTarget = index
-					GB_GLOBALS.bIsAimbotShooting = false
-					return true
 				end
 
 				MakeWeaponShoot(usercmd, index)
@@ -396,19 +395,6 @@ local function CreateMove(usercmd)
 	if best_angle and target then
 		local smoothed = engine:GetViewAngles() + vecMultiply(best_angle, (m_SmoothValue * 0.01 --[[/100]]))
 
-		if m_AimbotMode == aimbot_mode.plain and can_shoot then
-			local angle = engine:GetViewAngles() + best_angle
-			engine.SetViewAngles(EulerAngles(angle:Unpack()))
-		elseif m_AimbotMode == aimbot_mode.smooth then
-			engine.SetViewAngles(EulerAngles(smoothed:Unpack()))
-			usercmd.viewangles = smoothed
-		elseif m_AimbotMode == aimbot_mode.assistance and (usercmd.mousedx ~= 0 or usercmd.mousedy ~= 0) then
-			usercmd.viewangles = smoothed
-			engine.SetViewAngles(EulerAngles(smoothed:Unpack()))
-		elseif m_AimbotMode == aimbot_mode.silent then
-			usercmd.viewangles = usercmd.viewangles + best_angle
-		end
-
 		if can_shoot then
 			if m_AimbotMode == aimbot_mode.smooth or m_AimbotMode == aimbot_mode.assistance then
 				if looking_at_target then
@@ -422,17 +408,37 @@ local function CreateMove(usercmd)
 			--GB_GLOBALS.bIsAimbotShooting = true
 			--GB_GLOBALS.nAimbotTarget = target
 		end
+
+		local bIsShooting = usercmd.buttons & IN_ATTACK == 1
+
+		if m_AimbotMode == aimbot_mode.plain and can_shoot and bIsShooting then
+			local angle = engine:GetViewAngles() + best_angle
+			engine.SetViewAngles(EulerAngles(angle:Unpack()))
+		elseif m_AimbotMode == aimbot_mode.smooth then
+			engine.SetViewAngles(EulerAngles(smoothed:Unpack()))
+			usercmd.viewangles = smoothed
+		elseif m_AimbotMode == aimbot_mode.assistance and (usercmd.mousedx ~= 0 or usercmd.mousedy ~= 0) then
+			usercmd.viewangles = smoothed
+			engine.SetViewAngles(EulerAngles(smoothed:Unpack()))
+		elseif m_AimbotMode == aimbot_mode.silent and can_shoot and bIsShooting then
+			usercmd.viewangles = usercmd.viewangles + best_angle
+		end
 	end
 
 	if (settings.auto_spinup and weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_MINIGUN and usercmd.buttons & IN_ATTACK == 0) then
 		usercmd.buttons = usercmd.buttons | IN_ATTACK2
+	end
+
+	if settings.epicstacbypass then
+		usercmd.buttons = usercmd.buttons | IN_LEFT
+		usercmd.buttons = usercmd.buttons | IN_RIGHT
 	end
 end
 
 ---@param stage E_ClientFrameStage
 local function FrameStageNotify(stage)
 	if stage == E_ClientFrameStage.FRAME_NET_UPDATE_END and localplayer and weapon then
-		bReadyToBackstab = weapon:GetPropBool("bReadyToBackstab") or false
+		bReadyToBackstab = weapon:GetPropBool("m_bReadyToBackstab")
 	end
 end
 
@@ -502,6 +508,9 @@ local function cmd_ChangeAimSmoothness(args, num_args)
 	settings.smooth_value = new_value
 end
 
+local function cmd_ToggleEpicStacBypass()
+	settings.epicstacbypass = not settings.epicstacbypass
+end
 
 GB_GLOBALS.RegisterCommand("aimbot->change->mode", "Change aimbot mode | args: mode (plain, smooth or silent)", 1, cmd_ChangeAimbotMode)
 GB_GLOBALS.RegisterCommand("aimbot->change->key", "Changes aimbot key | args: key (w, f, g, ...)", 1, cmd_ChangeAimbotKey)
@@ -510,6 +519,7 @@ GB_GLOBALS.RegisterCommand("aimbot->ignore->toggle", "Toggles a aimbot ignore op
 GB_GLOBALS.RegisterCommand("aimbot->toggle->aimlock", "Makes the aimbot not stop looking at the targe when shooting", 0, cmd_ToggleAimLock)
 GB_GLOBALS.RegisterCommand("aimbot->toggle->fovindicator", "Toggles aim fov circle", 0, cmd_ToggleAimFov)
 GB_GLOBALS.RegisterCommand("aimbot->change->smoothness", "Changes the smoothness value | args: new value (number, 0 to 1)", 1, cmd_ChangeAimSmoothness)
+GB_GLOBALS.RegisterCommand("aimbot->toggle->stacbypass", "Toggles the **epic** stac bypass", 0, cmd_ToggleEpicStacBypass)
 
 local aimbot = {}
 aimbot.CreateMove = CreateMove
