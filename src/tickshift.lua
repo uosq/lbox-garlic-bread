@@ -1,3 +1,6 @@
+local gb = GB_GLOBALS
+if not gb then return end
+
 local SIGNONSTATE_TYPE = 6
 local CLC_MOVE_TYPE = 9
 
@@ -15,6 +18,8 @@ local font = draw.CreateFont("TF2 BUILD", 16, 1000)
 ---@type number, boolean
 local m_localplayer_speed, m_bIsRED
 m_bIsRED = false
+
+local colors = require("src.colors")
 
 local m_settings = {
 	warp = {
@@ -40,16 +45,6 @@ local m_settings = {
 
 local tickshift = {}
 
----@param secs number
-local function TIME_TO_TICKS(secs)
-	return (0.5 * secs) / globals.TickInterval()
-end
-
----@param ticks integer
-local function TICKS_TO_TIME(ticks)
-	return globals.TickInterval() * TIME_TO_TICKS(ticks)
-end
-
 local function CanChoke()
 	return clientstate:GetChokedCommands() < max_ticks
 end
@@ -74,9 +69,9 @@ function HandleWarp(msg)
 	end
 
 	if
-		GB_GLOBALS.bIsAimbotShooting
-		and GB_GLOBALS.usercmd_buttons
-		and GB_GLOBALS.usercmd_buttons & IN_ATTACK ~= 0
+		gb.bIsAimbotShooting
+		and gb.usercmd_buttons
+		and gb.usercmd_buttons & IN_ATTACK ~= 0
 	then
 		return
 	end
@@ -91,8 +86,6 @@ function HandleWarp(msg)
 		msg:ReadFromBitBuffer(buffer)
 		buffer:Delete()
 
-		--moveMsg:init()
-		--msg:ReadFromBitBuffer(moveMsg.buffer)
 		charged_ticks = charged_ticks - 1
 	end
 end
@@ -159,8 +152,8 @@ end
 ---@param msg NetMessage
 ---@param returnval {ret: boolean}
 function tickshift.SendNetMsg(msg, returnval)
-	GB_GLOBALS.bWarping = false
-	GB_GLOBALS.bRecharging = false
+	gb.bWarping = false
+	gb.bRecharging = false
 
 	--- return early if user disabled with console commands
 	if not m_enabled then return true end
@@ -169,7 +162,7 @@ function tickshift.SendNetMsg(msg, returnval)
 		HandleJoinServers(msg)
 	end
 
-	if GB_GLOBALS.bIsStacRunning or GB_GLOBALS.bFakeLagEnabled then return true end
+	if gb.bIsStacRunning or gb.bFakeLagEnabled then return true end
 
 	if engine.IsChatOpen() or engine.IsGameUIVisible() or engine.Con_IsVisible() then
 		return true
@@ -177,10 +170,10 @@ function tickshift.SendNetMsg(msg, returnval)
 
 	if msg:GetType() == CLC_MOVE_TYPE then
 		if warping and not recharging then
-			GB_GLOBALS.bWarping = true
+			gb.bWarping = true
 			HandleWarp(msg)
 		elseif HandleRecharge() then
-			GB_GLOBALS.bRecharging = true
+			gb.bRecharging = true
 			returnval.ret = false
 		end
 	end
@@ -189,7 +182,7 @@ end
 ---@param usercmd UserCmd
 function tickshift.CreateMove(usercmd)
 	if engine.IsChatOpen() or engine.IsGameUIVisible() or engine.Con_IsVisible()
-		or GB_GLOBALS.bIsStacRunning or not m_enabled or GB_GLOBALS.bFakeLagEnabled then
+		or gb.bIsStacRunning or not m_enabled or gb.bFakeLagEnabled then
 		return
 	end
 
@@ -201,10 +194,10 @@ function tickshift.CreateMove(usercmd)
 	max_ticks = GetMaxServerTicks()
 	charged_ticks = clamp(charged_ticks, 0, max_ticks)
 
-	shooting = ((usercmd.buttons & IN_ATTACK) ~= 0 or GB_GLOBALS.bIsAimbotShooting) and GB_GLOBALS.CanWeaponShoot()
+	shooting = ((usercmd.buttons & IN_ATTACK) ~= 0 or gb.bIsAimbotShooting) and gb.CanWeaponShoot()
 
 	warping = input.IsButtonDown(m_settings.warp.send_key)
-	GB_GLOBALS.bWarping = warping
+	gb.bWarping = warping
 	recharging = input.IsButtonDown(m_settings.warp.recharge_key)
 
 	local state, tick = input.IsButtonPressed(m_settings.warp.passive.toggle_key)
@@ -221,8 +214,8 @@ function tickshift.Draw()
 		or engine:IsGameUIVisible()
 		or (engine:IsTakingScreenshot() and gui.GetValue("clean screenshots") == 1)
 		or not m_enabled
-		or GB_GLOBALS.bIsStacRunning
-		or GB_GLOBALS.bFakeLagEnabled
+		or gb.bIsStacRunning
+		or gb.bFakeLagEnabled
 	then
 		return
 	end
@@ -240,7 +233,7 @@ function tickshift.Draw()
 	local percent = charged_ticks / max_ticks
 	local barX, barY = centerX - math.floor(barWidth / 2), math.floor(centerY + textH + 20)
 
-	draw.Color(30, 30, 30, 252)
+	draw.Color(table.unpack(colors.WARP_BAR_BACKGROUND))
 	draw.FilledRect(
 		math.floor(barX - offset),
 		math.floor(barY - offset),
@@ -248,7 +241,7 @@ function tickshift.Draw()
 		math.floor(barY + textH + offset)
 	)
 
-	local color = m_bIsRED and { 236, 57, 57, 255 } or { 12, 116, 191, 255 }
+	local color = m_bIsRED and colors.WARP_BAR_RED or colors.WARP_BAR_BLU
 	draw.Color(table.unpack(color))
 
 	pcall(
@@ -260,7 +253,7 @@ function tickshift.Draw()
 	)
 
 	draw.SetFont(font)
-	draw.Color(255, 255, 255, 255)
+	draw.Color(table.unpack(colors.WARP_BAR_TEXT))
 	draw.TextShadow(textX, textY, formatted_text)
 end
 
@@ -288,5 +281,5 @@ end
 
 tickshift.unload = unload
 
-GB_GLOBALS.RegisterCommand("tickshift->toggle", "Toggles tickshifting (warp, recharge)", 0, cmd_ToggleTickShift)
+gb.RegisterCommand("tickshift->toggle", "Toggles tickshifting (warp, recharge)", 0, cmd_ToggleTickShift)
 return tickshift

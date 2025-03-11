@@ -44,6 +44,7 @@ local m_bDrawOn = {
   HEALTHPACK = true,
   AMMOPACK = true,
   VIEWMODEL_ARM = true,
+  VIEWMODEL_WEAPON = true,
   PLAYERS = true,
   SENTRIES = true,
   DISPENSERS = true,
@@ -55,22 +56,18 @@ local m_bDrawOn = {
   RAGDOLLS = true,
 }
 
----@type integer?
-local localplayer_index = nil
-
 local render = render
 local entities = entities
 local string = string
-local playerlist = playerlist
 local models = models
 
 --- used for string.find
-local WEARABLES_CLASS = "Wearable"
 local TEAM_RED --[[, TEAM_BLU <const>]] = 2 --, 3
 local SENTRY_CLASS, DISPENSER_CLASS, TELEPORTER_CLASS =
 	 "CObjectSentrygun", "CObjectDispenser", "CObjectTeleporter"
 local MVM_MONEY_CLASS = "CCurrencyPack"
 local VIEWMODEL_ARM_CLASS = "CTFViewModel"
+local VIEWMODEL_WEAPON_MODELNAME = "models/weapons/c_models"
 
 function chams.unload()
 	chams_materials = nil
@@ -85,13 +82,10 @@ function chams.unload()
 	m_bDrawOriginalViewmodelArmMaterial = nil
 	m_bIgnoreDisguisedSpy = nil
 	m_bDrawOn = nil
-	localplayer_index = nil
 	render = nil
 	entities = nil
 	string = nil
-	playerlist = nil
 	models = nil
-	WEARABLES_CLASS = nil
 	TEAM_RED = nil
 	MVM_MONEY_CLASS = nil
 	VIEWMODEL_ARM_CLASS = nil
@@ -243,7 +237,21 @@ function chams.DrawModel(context)
 	end
 
 	local entity = context:GetEntity()
-	if not entity or entity == nil then return end
+
+	if entity == nil and string.find(context:GetModelName(), VIEWMODEL_WEAPON_MODELNAME) then
+		local pLocal = entities:GetLocalPlayer()
+		if not pLocal then return end
+
+		local hViewModel = pLocal:GetPropEntity("m_hViewModel[0]")
+		if not hViewModel or not hViewModel:ShouldDraw() then return end
+
+		local r, g, b, a = get_color(table.unpack(COLORS.VIEWMODEL_WEAPON))
+		context:SetColorModulation(r, g, b)
+		context:SetAlphaModulation(a)
+		context:ForcedMaterialOverride(material)
+	end
+	
+	if not entity then return end
 
 	local index = entity:GetIndex()
 	local class = entity:GetClass()
@@ -345,6 +353,31 @@ local function CMD_SetUpdateInterval(args, num_args)
   end
 end
 
+local function CMD_TryToFixMaterials()
+	chams_materials = {
+		flat = materials.Create(
+			"garlic bread flat chams",
+		[[
+	  "UnlitGeneric"
+	  {
+		 $basetexture "vgui/white_additive"
+	  }
+	  ]]
+		),
+
+		textured = materials.Create(
+			"garlic bread textured chams",
+		[[
+	  "VertexLitGeneric"
+	  {
+		 $basetexture "vgui/white_additive"
+	  }
+	  ]]
+		),
+	}
+	
+end
+
 GB_GLOBALS.RegisterCommand("chams->toggle", "Toggles chams", 0, CMD_ToggleChams)
 GB_GLOBALS.RegisterCommand("chams->material", "Changes chams material | args: material mode (flat or textured)", 1, CMD_ChangeMaterialMode)
 GB_GLOBALS.RegisterCommand("chams->change_color", "Changes the selected color on chams | args: color (string), r, g, b, a (numbers) | example: chams->change_color viewmodel_arm 150 255 150 255", 5, CMD_ChangeColor)
@@ -353,4 +386,5 @@ GB_GLOBALS.RegisterCommand("chams->toggle->original_player_mat", "Toggles chams 
 GB_GLOBALS.RegisterCommand("chams->toggle->enemy_only", "Toggles chams drawing on only enemies or not", 0, CMD_ToggleDrawOnEnemyOnly)
 GB_GLOBALS.RegisterCommand("chams->toggle->original_viewmodel_mat", "Toggles chams drawing the original viewmodel material", 0, CMD_ToggleDrawOriginalViewmodelMat)
 GB_GLOBALS.RegisterCommand("chams->update_interval", "Changes the entity update interval | args new value (number)", 1, CMD_SetUpdateInterval)
+GB_GLOBALS.RegisterCommand("chams->fix_materials", "Tries to fix materials by creating them again", 0, CMD_TryToFixMaterials)
 return chams

@@ -4,20 +4,22 @@ require("src.bitbuf")
 
 --- make them run before tickshift so we dont return before it
 require("src.anticheat")
-require("src.convars")
 
+local gui = require("src.gui")
+local hud = require("src.hud")
 local spoof = require("src.spoof_convars")
 local spectators = require("src.spectatorlist")
+local antiaim = require("src.antiaim")
 local aimbot = require("src.aimbot")
 local esp = require("src.esp")
 local tickshift = require("src.tickshift")
 local fakelag = require("src.fakelag")
-local antiaim = require("src.antiaim")
 local visuals = require("src.visuals")
 local movement = require("src.movement")
 local chams = require("src.chams")
 local binds = require("src.binds")
 
+require("src.convars")
 require("src.background")
 
 --- i just dont like having to deal with LSP bullshit
@@ -39,6 +41,7 @@ callbacks.Register("Draw", "DRAW garlic bread", function()
 	tickshift.Draw()
 	antiaim.Draw()
 	spectators.Draw()
+	hud.Draw()
 end)
 
 ---@param setup ViewSetup
@@ -47,8 +50,10 @@ callbacks.Register("RenderView", "RV garlic bread", function(setup)
 end)
 
 callbacks.Register("FrameStageNotify", "FSN garlic bread", function(stage)
+	hud.FrameStageNotify(stage)
 	aimbot.FrameStageNotify(stage)
 	visuals.FrameStageNotify(stage)
+	spectators.FrameStageNotify(stage)
 end)
 
 ---@param context DrawModelContext
@@ -65,7 +70,6 @@ end)
 ---@param usercmd UserCmd
 callbacks.Register("CreateMove", "CM garlic bread", function(usercmd)
 	fakelag.CreateMove(usercmd)
-	spectators.CreateMove(usercmd)
 	aimbot.CreateMove(usercmd)
 	esp.CreateMove(usercmd)
 	tickshift.CreateMove(usercmd)
@@ -85,7 +89,6 @@ callbacks.Register("Unload", "UL garlic bread unload", function()
 	callbacks.Unregister("CreateMove", "CM garlic bread")
 
 	antiaim.unload()
-	spoof.unload()
 	spectators.unload()
 	aimbot.unload()
 	tickshift.unload()
@@ -96,6 +99,9 @@ callbacks.Register("Unload", "UL garlic bread unload", function()
 	binds.unload()
 	esp.unload()
 	fakelag.unload()
+	gui.unload()
+	hud.unload()
+	spoof.unload()
 	GB_GLOBALS = nil
 	collectgarbage("collect")
 end)

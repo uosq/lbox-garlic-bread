@@ -1,43 +1,4 @@
-local aimbot_mode = { plain = 1, smooth = 2, silent = 3, assistance = 4 }
-
-local settings = {
-	fov = 10,
-	key = E_ButtonCode.KEY_LSHIFT,
-	autoshoot = true,
-	mode = aimbot_mode.silent,
-	lock_aim = false,
-	smooth_value = 10, --- lower value, smoother aimbot (10 = very smooth, 100 = basically plain aimbot)
-	auto_spinup = true,
-	aimfov = false,
-	epicstacbypass = true,
-
-	--- should aimbot run when using one of them?
-	hitscan = true,
-	melee = true,
-	projectile = true,
-
-	autobackstab = true,
-
-	--- engineer
-	aim_friendly_buildings = true,
-
-	ignore = {
-		cloaked = true,
-		disguised = false,
-		taunting = false,
-		bonked = true,
-		friends = false,
-		deadringer = false,
-		spectators = true,
-	},
-
-	aim = {
-		players = true,
-		npcs = true,
-		sentries = true,
-		other_buildings = true,
-	},
-}
+local aimbot_mode = { plain = "plain", smooth = "smooth", silent = "silent", assistance = "assistance" }
 
 local bReadyToBackstab = false
 
@@ -164,7 +125,7 @@ end
 --- Only run this in CreateMove, after localplayer and weapon are valid!
 ---@param usercmd UserCmd
 local function RunMelee(usercmd)
-	if weapon and weapon:IsMeleeWeapon() then
+	if weapon and weapon:IsMeleeWeapon() and GB_GLOBALS.aimbot.autobackstab then
 		local swing_trace = weapon:DoSwingTrace()
 
 		if swing_trace and swing_trace.entity and swing_trace.fraction >= VISIBLE_FRACTION then
@@ -172,7 +133,7 @@ local function RunMelee(usercmd)
 			local entity_team = entity:GetTeamNumber()
 			local index = entity:GetIndex()
 			if
-				settings.aim_friendly_buildings
+				GB_GLOBALS.aimbot.aim_friendly_buildings
 				and BUILDINGS[entity:GetClass()]
 				and localplayer
 				and localplayer:GetPropInt("m_PlayerClass", "m_iClass") == ENGINEER_CLASS
@@ -186,7 +147,7 @@ local function RunMelee(usercmd)
 			end
 
 			if entity_team ~= m_team and entity:IsAlive() then
-				if weapon and weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_KNIFE and settings.autobackstab then
+				if weapon and weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_KNIFE and GB_GLOBALS.aimbot.autobackstab then
 					if bReadyToBackstab then
 						MakeWeaponShoot(usercmd, index)
 					else
@@ -204,11 +165,6 @@ local function RunMelee(usercmd)
 	return false
 end
 
---[[
-local function calc_fov(fov, aspect_ratio)
-	return math.deg(math.atan(math.tan(math.rad(fov) * 0.5) * aspect_ratio)) * 2
-end]]
-
 local function calc_fov(fov, aspect_ratio)
 	local halfanglerad = fov * (0.5 * math.pi / 180)
 	local t = math.tan(halfanglerad) * (aspect_ratio / (4/3))
@@ -221,7 +177,11 @@ local function CreateMove(usercmd)
 	GB_GLOBALS.bIsAimbotShooting = false
 	GB_GLOBALS.nAimbotTarget = nil
 
-	if GB_GLOBALS.bSpectated and not settings.ignore.spectators then
+	--- if antiaim is enabled or we aren't sending the packet for some reason
+	--- dont run the aimbot, could be detected as psilent on a community server
+	if not usercmd.sendpacket then return end
+
+	if (GB_GLOBALS.bSpectated and not GB_GLOBALS.aimbot.ignore.spectators) or not GB_GLOBALS.aimbot.enabled then
 		return
 	end
 
@@ -232,7 +192,7 @@ local function CreateMove(usercmd)
 	weapon = localplayer:GetPropEntity("m_hActiveWeapon")
 	if not weapon then return end
 
-	if not input.IsButtonDown(settings.key) then return end
+	if not input.IsButtonDown(GB_GLOBALS.aimbot.key) then return end
 	if engine.IsChatOpen() or engine.Con_IsVisible() or engine.IsGameUIVisible() then return end
 
 	--- if it returns true, it means it was a melee weapon and it did the proper math for them
@@ -244,11 +204,11 @@ local function CreateMove(usercmd)
 	if (weapon:GetPropInt("LocalWeaponData", "m_iClip1") == 0) then return end
 
 	--- try to make stac dont ban us :3
-	local m_AimbotMode = GB_GLOBALS.bIsStacRunning and aimbot_mode.smooth or settings.mode
-	local m_SmoothValue = GB_GLOBALS.bIsStacRunning and 20 or settings.smooth_value
+	local m_AimbotMode = GB_GLOBALS.bIsStacRunning and aimbot_mode.smooth or GB_GLOBALS.aimbot.mode
+	local m_SmoothValue = GB_GLOBALS.bIsStacRunning and 20 or GB_GLOBALS.aimbot.smooth_value
 	local m_nAspectRatio = (GB_GLOBALS.nAspectRatio == 0 and GB_GLOBALS.nPreAspectRatio or GB_GLOBALS.nAspectRatio)
 	local viewfov =  calc_fov(localplayer:InCond(E_TFCOND.TFCond_Zoomed) and 20 or GB_GLOBALS.flCustomFOV, m_nAspectRatio)
-	local m_Fov = settings.fov * (math.tan(math.rad(viewfov / 2)) / math.tan(math.rad(45)))
+	local m_Fov = GB_GLOBALS.aimbot.fov * (math.tan(math.rad(viewfov / 2)) / math.tan(math.rad(45)))
 
 	local shoot_pos = GetShootPosition()
 	if not shoot_pos then
@@ -261,7 +221,8 @@ local function CreateMove(usercmd)
 	--- trust me, i tried like 3 or 4 different math combinations
 	--- and i decided to just give up and paste amalgam for the fov xd
 
-	local best_angle, best_fov, target, looking_at_target = nil, m_Fov, nil, false
+	---@type EulerAngles?
+	local best_angle, best_fov, target = nil, m_Fov, nil
 
 	---@param class Entity[]
 	local function CheckBuilding(class)
@@ -292,17 +253,17 @@ local function CreateMove(usercmd)
 		--- but i think its clearer what it does like this
 		if entity:InCond(E_TFCOND.TFCond_Ubercharged) then
 			goto continue
-		elseif entity:InCond(E_TFCOND.TFCond_Cloaked) and settings.ignore.cloaked then
+		elseif entity:InCond(E_TFCOND.TFCond_Cloaked) and GB_GLOBALS.aimbot.ignore.cloaked then
 			goto continue
-		elseif settings.ignore.bonked and entity:InCond(E_TFCOND.TFCond_Bonked) then
+		elseif GB_GLOBALS.aimbot.ignore.bonked and entity:InCond(E_TFCOND.TFCond_Bonked) then
 			goto continue
-		elseif settings.ignore.deadringer and entity:InCond(E_TFCOND.TFCond_DeadRingered) then
+		elseif GB_GLOBALS.aimbot.ignore.deadringer and entity:InCond(E_TFCOND.TFCond_DeadRingered) then
 			goto continue
-		elseif settings.ignore.disguised and entity:InCond(E_TFCOND.TFCond_Disguised) then
+		elseif GB_GLOBALS.aimbot.ignore.disguised and entity:InCond(E_TFCOND.TFCond_Disguised) then
 			goto continue
-		elseif settings.ignore.friends and playerlist.GetPriority(entity) == -1 then
+		elseif GB_GLOBALS.aimbot.ignore.friends and playerlist.GetPriority(entity) == -1 then
 			goto continue
-		elseif settings.ignore.taunting and entity:InCond(E_TFCOND.TFCond_Taunting) then
+		elseif GB_GLOBALS.aimbot.ignore.taunting and entity:InCond(E_TFCOND.TFCond_Taunting) then
 			goto continue
 		end
 
@@ -327,11 +288,11 @@ local function CreateMove(usercmd)
 		local trace = TraceLine(shoot_pos, bone_position, MASK_SHOT_HULL)
 		if not trace then goto continue end
 
-		local looking_at_trace =
+		--[[local looking_at_trace =
 			TraceLine(shoot_pos, shoot_pos + engine:GetViewAngles():Forward() * 1000, MASK_SHOT_HULL)
 		if not looking_at_trace then
 			goto continue
-		end
+		end]]
 
 		local function do_aimbot_calc()
 			local angle = ToAngle(bone_position - shoot_pos) - (usercmd.viewangles - punchangles)
@@ -347,11 +308,6 @@ local function CreateMove(usercmd)
 		end
 
 		if trace and trace.entity == entity and trace.fraction >= VISIBLE_FRACTION then
-			--- for smooth aimbot, ensure we are aiming somewhat close to the target so we can shoot
-			if looking_at_trace and looking_at_trace.entity and looking_at_trace.entity == entity then
-				looking_at_target = true
-			end
-
 			do_aimbot_calc()
 		else
 			local BONES = CLASS_HITBOXES[enemy_class]
@@ -360,18 +316,9 @@ local function CreateMove(usercmd)
 				if bone ~= best_bone_for_weapon then
 					bone_position = GetBoneOrigin(bones[bone])
 					if not bone_position then goto skip_bone end
-
 					trace = TraceLine(shoot_pos, bone_position, MASK_SHOT_HULL)
 					if not trace then goto skip_bone end
-
 					if trace.entity == entity and trace.fraction >= VISIBLE_FRACTION then
-						if
-							not looking_at_target and looking_at_trace
-							and looking_at_trace.entity and looking_at_trace.entity == entity
-							and looking_at_trace.hitbox ~= 0 then
-							looking_at_target = true
-						end
-
 						do_aimbot_calc()
 					end
 				end
@@ -381,38 +328,39 @@ local function CreateMove(usercmd)
 		::continue::
 	end
 
-	if settings.aim.sentries then
+	if GB_GLOBALS.aimbot.aim.sentries then
 		CheckBuilding(Sentries)
 	end
 
-	if settings.aim.other_buildings then
+	if GB_GLOBALS.aimbot.aim.other_buildings then
 		CheckBuilding(Dispensers)
 		CheckBuilding(Teleporters)
 	end
 
-	local can_shoot = CanWeaponShoot() or settings.lock_aim -- if autoshoot is off and player is trying to shoot, we aim for them
+	local can_shoot = CanWeaponShoot() or GB_GLOBALS.aimbot.lock_aim -- if autoshoot is off and player is trying to shoot, we aim for them
 
 	if best_angle and target then
-		local smoothed = engine:GetViewAngles() + vecMultiply(best_angle, (m_SmoothValue * 0.01 --[[/100]]))
+		local viewangle = engine:GetViewAngles()
+		local smoothed = viewangle + vecMultiply(best_angle, (m_SmoothValue * 0.01 --[[/100]]))
+		local angle = viewangle + best_angle
+		local distance = math.sqrt(best_angle.x^2 + best_angle.y^2)
 
 		if can_shoot then
 			if m_AimbotMode == aimbot_mode.smooth or m_AimbotMode == aimbot_mode.assistance then
-				if looking_at_target then
+				if distance <= 2 then
 					--usercmd.buttons = usercmd.buttons | IN_ATTACK
 					MakeWeaponShoot(usercmd, target)
 				end
 			else
-				--usercmd.buttons = usercmd.buttons | IN_ATTACK
-				MakeWeaponShoot(usercmd, target)
+				if GB_GLOBALS.aimbot.autoshoot then
+					MakeWeaponShoot(usercmd, target)
+				end
 			end
-			--GB_GLOBALS.bIsAimbotShooting = true
-			--GB_GLOBALS.nAimbotTarget = target
 		end
 
 		local bIsShooting = usercmd.buttons & IN_ATTACK == 1
 
 		if m_AimbotMode == aimbot_mode.plain and can_shoot and bIsShooting then
-			local angle = engine:GetViewAngles() + best_angle
 			engine.SetViewAngles(EulerAngles(angle:Unpack()))
 		elseif m_AimbotMode == aimbot_mode.smooth then
 			engine.SetViewAngles(EulerAngles(smoothed:Unpack()))
@@ -425,11 +373,11 @@ local function CreateMove(usercmd)
 		end
 	end
 
-	if (settings.auto_spinup and weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_MINIGUN and usercmd.buttons & IN_ATTACK == 0) then
+	if (GB_GLOBALS.aimbot.auto_spinup and weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_MINIGUN) then
 		usercmd.buttons = usercmd.buttons | IN_ATTACK2
 	end
 
-	if settings.epicstacbypass then
+	if GB_GLOBALS.aimbot.epicstacbypass and usercmd.buttons & IN_ATTACK == 1 then
 		usercmd.buttons = usercmd.buttons | IN_LEFT
 		usercmd.buttons = usercmd.buttons | IN_RIGHT
 	end
@@ -443,14 +391,14 @@ local function FrameStageNotify(stage)
 end
 
 local function Draw()
-	if not settings.aimfov then return end
+	if not GB_GLOBALS.aimbot.aimfov or not GB_GLOBALS.aimbot.enabled then return end
 	if (engine:IsGameUIVisible() or engine:Con_IsVisible()) then return end
 
-	if localplayer and localplayer:IsAlive() and settings.fov <= 89 then
+	if localplayer and localplayer:IsAlive() and GB_GLOBALS.aimbot.fov <= 89 then
 		local viewfov = GB_GLOBALS.flCustomFOV
 		local aspectratio = (GB_GLOBALS.nAspectRatio == 0 and GB_GLOBALS.nPreAspectRatio or GB_GLOBALS.nAspectRatio)
 		viewfov = calc_fov(viewfov, aspectratio)
-		local aimfov = settings.fov * (math.tan(math.rad(viewfov / 2)) / math.tan(math.rad(45)))
+		local aimfov = GB_GLOBALS.aimbot.fov * (math.tan(math.rad(viewfov / 2)) / math.tan(math.rad(45)))
 		if (not aimfov or not viewfov) then return end --- wtf why is it a "number?"
 		local radius = (math.tan(math.rad(aimfov)/2))/(math.tan(math.rad(viewfov)/2)) * width
 		draw.Color(255,255,255,255)
@@ -461,7 +409,7 @@ end
 local function cmd_ChangeAimbotMode(args)
 	if (not args or #args == 0) then return end
 	local mode = tostring(args[1])
-	settings.mode = aimbot_mode[mode]
+	GB_GLOBALS.aimbot.mode = aimbot_mode[mode]
 end
 
 local function cmd_ChangeAimbotKey(args)
@@ -472,12 +420,12 @@ local function cmd_ChangeAimbotKey(args)
 	local selected_key = E_ButtonCode["KEY_" .. key]
 	if (not selected_key) then print("Invalid key!") return end
 
-	settings.key = selected_key
+	GB_GLOBALS.aimbot.key = selected_key
 end
 
 local function cmd_ChangeAimbotFov(args)
 	if (not args or #args == 0 or not args[1]) then return end
-	settings.fov = tonumber(args[1])
+	GB_GLOBALS.aimbot.fov = tonumber(args[1])
 end
 
 local function cmd_ChangeAimbotIgnore(args)
@@ -485,31 +433,31 @@ local function cmd_ChangeAimbotIgnore(args)
 	if (not args[1] or not args[2]) then return end
 
 	local option = tostring(args[1])
-	local ignoring = settings.ignore[option] and "aiming for" or "ignoring"
+	local ignoring = GB_GLOBALS.aimbot.ignore[option] and "aiming for" or "ignoring"
 
-	settings.ignore[option] = not settings.ignore[option]
+	GB_GLOBALS.aimbot.ignore[option] = not GB_GLOBALS.aimbot.ignore[option]
 
 	printc(150, 255, 150, 255, "Aimbot is now " .. ignoring .. " " .. option)
 end
 
 local function cmd_ToggleAimLock()
-	settings.lock_aim = not settings.lock_aim
-	printc(150, 255, 150, 255, "Aim lock is now " .. (settings.lock_aim and "enabled" or "disabled"))
+	GB_GLOBALS.aimbot.lock_aim = not GB_GLOBALS.aimbot.lock_aim
+	printc(150, 255, 150, 255, "Aim lock is now " .. (GB_GLOBALS.aimbot.lock_aim and "enabled" or "disabled"))
 end
 
 local function cmd_ToggleAimFov()
-	settings.aimfov = not settings.aimfov
+	GB_GLOBALS.aimbot.aimfov = not GB_GLOBALS.aimbot.aimfov
 end
 
 local function cmd_ChangeAimSmoothness(args, num_args)
 	if not args or #args ~= num_args then return end
 	local new_value = tonumber(args[1])
 	if not new_value then printc(255, 150, 150, 255, "Invalid value!") return end
-	settings.smooth_value = new_value
+	GB_GLOBALS.aimbot.smooth_value = new_value
 end
 
 local function cmd_ToggleEpicStacBypass()
-	settings.epicstacbypass = not settings.epicstacbypass
+	GB_GLOBALS.aimbot.epicstacbypass = not GB_GLOBALS.aimbot.epicstacbypass
 end
 
 GB_GLOBALS.RegisterCommand("aimbot->change->mode", "Change aimbot mode | args: mode (plain, smooth or silent)", 1, cmd_ChangeAimbotMode)
@@ -527,8 +475,7 @@ aimbot.FrameStageNotify = FrameStageNotify
 aimbot.Draw = Draw
 
 local function unload()
-	aimbot_mode = nil
-	settings = nil
+	GB_GLOBALS.aimbot = nil
 	bReadyToBackstab = nil
 	localplayer, weapon, m_team = nil, nil, nil
 	width, height = nil, nil

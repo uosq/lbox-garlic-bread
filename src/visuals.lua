@@ -1,11 +1,6 @@
 local visuals = {}
 local thirdperson_enabled = false
-
-local thirdperson_options = {
-	right = 0,
-	up = 0,
-	forward = 0
-}
+local thirdperson_options = {right = 0, up = 0, forward = 0}
 
 local function calc_fov(fov, aspect_ratio)
 	local halfanglerad = fov * (0.5 * math.pi / 180)
@@ -34,12 +29,14 @@ local function RenderView(setup)
 		setup.angles = EulerAngles((setup.angles - punchangle):Unpack())
 	end
 
-	if thirdperson_enabled then
-		local viewangles = engine:GetViewAngles()
-		local forward, right, up = viewangles:Forward(), viewangles:Right(), viewangles:Up()
-		setup.origin = setup.origin + (right * thirdperson_options.right)
-		setup.origin = setup.origin + (forward * thirdperson_options.forward)
-		setup.origin = setup.origin + (up * thirdperson_options.up)
+	do
+		if thirdperson_enabled then
+			local viewangles = engine:GetViewAngles()
+			local forward, right, up = viewangles:Forward(), viewangles:Right(), viewangles:Up()
+			setup.origin = setup.origin + (right * thirdperson_options.right)
+			setup.origin = setup.origin + (forward * thirdperson_options.forward)
+			setup.origin = setup.origin + (up * thirdperson_options.up)
+		end
 	end
 end
 

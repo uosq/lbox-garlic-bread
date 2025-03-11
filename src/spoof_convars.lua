@@ -16,11 +16,11 @@ function funcs.SendNetMsg(msg, returnval)
       if (cvar) then
          CLC_RespondCvarValue:WriteToBitBuffer(bf, result.cvarName, cvar)
          msg:ReadFromBitBuffer(bf)
+         returnval.ret = true
       end
 
       bf:Delete()
    end
-   returnval.ret = true
 end
 
 --- gb setsvar name value
@@ -33,12 +33,23 @@ local function CMD_SpoofConVar(args, num_args)
    client.SetConVar(cvar, var)
 end
 
-GB_GLOBALS.RegisterCommand("spoof->setsvar", "Spoofs a convar to whatever you want the server to see | args: name, new value", 2,  CMD_SpoofConVar)
+GB_GLOBALS.RegisterCommand("spoof->setsvar",
+"Spoofs a convar to whatever you want the server to see | args: name, new value", 2, CMD_SpoofConVar)
 
 function funcs.unload()
    clc_RespondCvarValue = nil
    spoofed_cvars = nil
    funcs = nil
+end
+
+function SpoofConVar(convar, value)
+   spoofed_cvars[convar] = value
+end
+
+function UnSpoofConVar(convar)
+   if spoofed_cvars[convar] then
+      spoofed_cvars[convar] = nil
+   end
 end
 
 return funcs

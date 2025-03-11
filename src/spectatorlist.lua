@@ -18,11 +18,11 @@ local OBS_MODE = {
 	MODE_ROAMING = 2,	-- they are free roaming some more
 }
 
----@param usercmd UserCmd
-local function CreateMove(usercmd)
+---@param stage E_ClientFrameStage
+local function FrameStageNotify(stage)
    if not m_enabled then return end
+   if not stage == E_ClientFrameStage.FRAME_NET_UPDATE_END then return end
 
-   local max_entity_index = entities:GetHighestEntityIndex()
    local localplayer = entities:GetLocalPlayer()
    if not localplayer then return end
    local localindex = localplayer:GetIndex()
@@ -80,7 +80,7 @@ local function Draw()
    end
 end
 
-feature.CreateMove = CreateMove
+feature.FrameStageNotify = FrameStageNotify
 feature.Draw = Draw
 
 local function CMD_ToggleSpecList()

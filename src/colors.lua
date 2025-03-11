@@ -11,6 +11,7 @@ local COLORS = {
 
 	LOCALPLAYER = { 156, 66, 245, 50 },
 	VIEWMODEL_ARM = { 210, 210, 255, 150 },
+	VIEWMODEL_WEAPON = {255, 255, 255, 100},
 
 	WEAPON_PRIMARY = { 163, 64, 90, 100 },
 	WEAPON_SECONDARY = { 74, 79, 125, 100 },
@@ -38,11 +39,16 @@ local COLORS = {
 
   ORIGINAL_PLAYER = {255, 255, 255, 255},
   ORIGINAL_VIEWMODEL = {255, 255, 255, 255},
+
+  WARP_BAR_BACKGROUND = {30, 30, 30, 252},
+  WARP_BAR_RED = {236, 57, 57, 255},
+  WARP_BAR_BLU = {12, 116, 191, 255},
+  WARP_BAR_TEXT = {255, 255, 255, 255},
 }
 
 --- used for string.find
 local WEARABLES_CLASS = "Wearable"
-local TEAM_RED --[[, TEAM_BLU <const>]] = 2 --, 3
+local TEAM_RED= 2
 local SENTRY_CLASS, DISPENSER_CLASS, TELEPORTER_CLASS =
 	 "CObjectSentrygun", "CObjectDispenser", "CObjectTeleporter"
 local MVM_MONEY_CLASS = "CCurrencyPack"
