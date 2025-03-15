@@ -1,3 +1,6 @@
+local gb = GB_GLOBALS
+assert(gb, "anticheat: GB_GLOBALS is nil!")
+
 local clc_RespondCvarValue = 13
 local SIGNONSTATE_TYPE = 6
 local m_bEnabled = true
@@ -13,11 +16,11 @@ end)
 local function AntiCheat(msg)
 	if (not m_bEnabled) then return true end
 	if msg:GetType() == SIGNONSTATE_TYPE and clientstate:GetClientSignonState() == E_SignonState.SIGNONSTATE_NONE then
-		GB_GLOBALS.bIsStacRunning = false
+		gb.bIsStacRunning = false
 	end
 
-	if msg:GetType() == clc_RespondCvarValue and not GB_GLOBALS.bIsStacRunning then
-		GB_GLOBALS.bIsStacRunning = true
+	if msg:GetType() == clc_RespondCvarValue and not gb.bIsStacRunning then
+		gb.bIsStacRunning = true
 		printc(255, 200, 200, 255, "STAC was detected! Some features are disabled")
 		client.ChatPrintf("STAC was detected! Some features are disabled")
 	end
@@ -29,8 +32,8 @@ callbacks.Register("SendNetMsg", "NETMSG garlic bread stac detector", AntiCheat)
 
 local function CMD_Toggle()
 	m_bEnabled = not m_bEnabled
-	if (not m_bEnabled) then GB_GLOBALS.bIsStacRunning = false end
+	if (not m_bEnabled) then gb.bIsStacRunning = false end
 	printc(255, 0, 0, 255, "STAC checker is " .. (m_bEnabled and "enabled" or "disabled"))
 end
 
-GB_GLOBALS.RegisterCommand("anticheat->toggle_stac_check", "Lets go gambling!", 0,  CMD_Toggle)
+gb.RegisterCommand("anticheat->toggle_stac_check", "Lets go gambling!", 0,  CMD_Toggle)

@@ -4,6 +4,9 @@
 ---@field b integer
 ---@field a integer
 
+local gb_settings = GB_SETTINGS
+assert(gb_settings, "chams: GB_SETTINGS is nil!")
+
 local chams_materials = {
 	flat = materials.Create(
 		"garlic bread flat chams",
@@ -31,30 +34,7 @@ local m_szMaterialMode = "flat"
 local COLORS = require("src.colors")
 
 local chams = {}
-
-local m_bEnabled = true
-local m_nUpdateInterval = 5
-local m_bDrawOnEnemyOnly = false
-local m_bDrawOnVisibleOnly = true
-local m_bDrawOriginalPlayerMaterial = false
-local m_bDrawOriginalViewmodelArmMaterial = false
-local m_bIgnoreDisguisedSpy = true
-
-local m_bDrawOn = {
-  HEALTHPACK = true,
-  AMMOPACK = true,
-  VIEWMODEL_ARM = true,
-  VIEWMODEL_WEAPON = true,
-  PLAYERS = true,
-  SENTRIES = true,
-  DISPENSERS = true,
-  TELEPORTERS = true,
-  MONEY = true,
-  LOCALPLAYER = true,
-  ANTIAIM = true,
-  BACKTRACK = true,
-  RAGDOLLS = true,
-}
+local settings = gb_settings.chams
 
 local render = render
 local entities = entities
@@ -74,14 +54,6 @@ function chams.unload()
 	m_szMaterialMode = nil
 	COLORS = nil
 	chams = nil
-	m_bEnabled = nil
-	m_nUpdateInterval = nil
-	m_bDrawOnEnemyOnly = nil
-	m_bDrawOnVisibleOnly = nil
-	m_bDrawOriginalPlayerMaterial = nil
-	m_bDrawOriginalViewmodelArmMaterial = nil
-	m_bIgnoreDisguisedSpy = nil
-	m_bDrawOn = nil
 	render = nil
 	entities = nil
 	string = nil
@@ -119,14 +91,13 @@ local function update_entities()
 		local entity = entities.GetByIndex(i)
 		if (not entity) then goto continue end
 		if (entity:IsDormant()) then goto continue end
-		if (not m_bDrawOn.LOCALPLAYER and i == localindex) then goto continue end
+		if (not settings.filter.LOCALPLAYER and i == localindex) then goto continue end
 		local class = entity:GetClass()
 		local team = entity:GetTeamNumber()
 
-		if (m_bDrawOnEnemyOnly and team == localteam) then goto continue end
-
-		if (m_bDrawOn.PLAYERS and entity:IsPlayer() and entity:IsAlive()) then
-			if (entity:InCond(E_TFCOND.TFCond_Disguised) and m_bIgnoreDisguisedSpy) then goto continue end
+		if (settings.enemy_only and team == localteam) then goto continue end
+		if (settings.filter.PLAYERS and entity:IsPlayer() and entity:IsAlive()) then
+			if (entity:InCond(E_TFCOND.TFCond_Disguised) and settings.ignore_disguised_spy) then goto continue end
 
 			entity_list_color_back[i] = COLORS.get_entity_color(entity)
 
@@ -138,19 +109,19 @@ local function update_entities()
 		else
 			--- excluding ragdolls, they aren't alive >:)
 			if (entity:GetHealth() >= 1) then
-				if ((m_bDrawOn.SENTRIES and class == SENTRY_CLASS) or (m_bDrawOn.DISPENSERS and class == DISPENSER_CLASS)
-						 or (m_bDrawOn.TELEPORTERS and class == TELEPORTER_CLASS)) then
+				if ((settings.filter.SENTRIES and class == SENTRY_CLASS) or (settings.filter.DISPENSERS and class == DISPENSER_CLASS)
+						 or (settings.filter.TELEPORTERS and class == TELEPORTER_CLASS)) then
 					entity_list_color_back[i] = COLORS.get_entity_color(entity)
 					goto continue
 				end
 
-				if (m_bDrawOn.MONEY and class == MVM_MONEY_CLASS) then
+				if (settings.filter.MONEY and class == MVM_MONEY_CLASS) then
 					entity_list_color_back[i] = COLORS.get_entity_color(entity)
 					goto continue
 				end
 			end
 
-			if (m_bDrawOn.RAGDOLLS and (class == "CTFRagdoll" or class == "CRagdollProp" or class == "CRagdollPropAttached")) then
+			if (settings.filter.RAGDOLLS and (class == "CTFRagdoll" or class == "CRagdollProp" or class == "CRagdollPropAttached")) then
 				entity_list_color_back[i] = entity:GetPropInt("m_iTeam") == TEAM_RED and COLORS.RAGDOLL_RED or
 					 COLORS.RAGDOLL_BLU
 				goto continue
@@ -160,7 +131,7 @@ local function update_entities()
 	end
 
 	--- lol viewmodel is not in entity list
-	if (m_bDrawOn.VIEWMODEL_ARM) then
+	if (settings.filter.VIEWMODEL_ARM) then
 		local viewmodel = me:GetPropEntity("m_hViewModel[0]")
 		if (viewmodel) then
 			entity_list_color_back[viewmodel:GetIndex()] = COLORS.get_entity_color(viewmodel)
@@ -168,7 +139,7 @@ local function update_entities()
 	end
 
 	--- lol ammo and healthpacks arent in entity list xd
-	if (m_bDrawOn.AMMOPACK or m_bDrawOn.HEALTHPACK) then
+	if (settings.filter.AMMOPACK or settings.filter.HEALTHPACK) then
 		local cbasenimating = entities.FindByClass("CBaseAnimating")
 		for _, entity in pairs (cbasenimating) do
 				--- medkit, ammopack
@@ -177,9 +148,9 @@ local function update_entities()
 				local model_name = string.lower(models.GetModelName(model))
 				if (model_name) then
 					local i = entity:GetIndex()
-					if (m_bDrawOn.AMMOPACK and string.find(model_name, "ammo")) then
+					if (settings.filter.AMMOPACK and string.find(model_name, "ammo")) then
 						entity_list_color_back[i] = COLORS.AMMOPACK
-					elseif (m_bDrawOn.HEALTHPACK and (string.find(model_name, "health") or string.find(model_name, "medkit"))) then
+					elseif (settings.filter.HEALTHPACK and (string.find(model_name, "health") or string.find(model_name, "medkit"))) then
 						entity_list_color_back[i] = COLORS.HEALTHKIT
 					end
 				end
@@ -193,7 +164,7 @@ end
 
 ---@param usercmd UserCmd
 function chams.CreateMove(usercmd)
-  if (m_bEnabled and (usercmd.tick_count % m_nUpdateInterval) == 0) then
+  if (settings.enabled and (usercmd.tick_count % settings.update_interval) == 0) then
     update_entities()
   end
 end
@@ -222,14 +193,14 @@ end
 
 ---@param context DrawModelContext
 function chams.DrawModel(context)
-  if (not m_bEnabled) then return end
+  if (not settings.enabled) then return end
 
 	local material = chams_materials[m_szMaterialMode]
 	if (not material) then return end
 
 	local drawing_backtrack, drawing_antiaim = context:IsDrawingBackTrack(), context:IsDrawingAntiAim()
 	if (drawing_antiaim or drawing_backtrack) then
-		if ((drawing_antiaim and m_bDrawOn.ANTIAIM) or (drawing_backtrack and m_bDrawOn.BACKTRACK)) then
+		if ((drawing_antiaim and settings.filter.ANTIAIM) or (drawing_backtrack and settings.filter.BACKTRACK)) then
 			local color = (drawing_antiaim and COLORS.ANTIAIM or COLORS.BACKTRACK)
 			ChangeMaterialForIndicators(context, material, color)
 		end
@@ -261,8 +232,8 @@ function chams.DrawModel(context)
 	local color = entity_list_color_front[index]
 	if (not color) then return end
 
-	if ((m_bDrawOriginalPlayerMaterial and class == "CTFPlayer")
-			 or (class == VIEWMODEL_ARM_CLASS and m_bDrawOriginalViewmodelArmMaterial)) then
+	if ((settings.original_player_mat and class == "CTFPlayer")
+			 or (class == VIEWMODEL_ARM_CLASS and settings.original_viewmodel_mat)) then
 		--- draw the original material
     if (class == VIEWMODEL_ARM_CLASS) then
       local r, g, b, a = get_color(table.unpack(COLORS.ORIGINAL_VIEWMODEL))
@@ -282,7 +253,7 @@ function chams.DrawModel(context)
 	context:ForcedMaterialOverride(material)
 	context:SetColorModulation(r, g, b)
 
-	if (not m_bDrawOnVisibleOnly) then
+	if (not settings.filterVisibleOnly) then
 		context:DepthRange(0, (class == VIEWMODEL_ARM_CLASS and 0.1 or 0.2))
 	end
 
@@ -297,7 +268,7 @@ function chams.DrawModel(context)
 end
 
 local function CMD_ToggleChams()
-  m_bEnabled = not m_bEnabled
+  settings.enabled = not settings.enabled
 end
 
 local function CMD_ChangeMaterialMode(args)
@@ -322,23 +293,23 @@ local function CMD_ChangeColor(args, num_args)
 end
 
 local function CMD_ToggleVisibleOnly()
-  m_bDrawOnVisibleOnly = not m_bDrawOnVisibleOnly
-  printc(150, 255, 150, 255, "Chams will draw on " .. (m_bDrawOnVisibleOnly and "visible" or "invisible") .. " entities")
+  settings.visible_only = not settings.visible_only
+  printc(150, 255, 150, 255, "Chams will draw on " .. (settings.visible_only and "visible" or "invisible") .. " entities")
 end
 
 local function CMD_ToggleDrawOriginalPlayerMat()
-  m_bDrawOriginalPlayerMaterial = not m_bDrawOriginalPlayerMaterial
-  printc(150, 255, 150, 255, "Chams will " .. (m_bDrawOriginalPlayerMaterial and "draw" or "not draw") .. " the original player material")
+	settings.original_player_mat = not settings.original_player_mat
+  printc(150, 255, 150, 255, "Chams will " .. (settings.original_player_mat and "draw" or "not draw") .. " the original player material")
 end
 
 local function CMD_ToggleDrawOriginalViewmodelMat()
-  m_bDrawOriginalViewmodelArmMaterial = not m_bDrawOriginalViewmodelArmMaterial
-  printc(150, 255, 150, 255, "Chams will " .. (m_bDrawOriginalViewmodelArmMaterial and "draw" or "not draw") .. " the original viewmodel material")
+  settings.original_viewmodel_mat = not settings.original_viewmodel_mat
+  printc(150, 255, 150, 255, "Chams will " .. (settings.original_viewmodel_mat and "draw" or "not draw") .. " the original viewmodel material")
 end
 
 local function CMD_ToggleDrawOnEnemyOnly()
-  m_bDrawOnEnemyOnly = not m_bDrawOnEnemyOnly
-  printc(150, 255, 150, 255, "Chams will " .. (m_bDrawOnEnemyOnly and "draw only" or "not only draw") .. " the enemies")
+  settings.enemy_only = not settings.enemy_only
+  printc(150, 255, 150, 255, "Chams will " .. (settings.enemy_only and "draw only" or "not only draw") .. " the enemies")
 end
 
 local function CMD_SetUpdateInterval(args, num_args)
@@ -346,7 +317,7 @@ local function CMD_SetUpdateInterval(args, num_args)
   local new_value = tonumber(args[1])
   if (new_value <= 0) then printc(255, 0, 0, 255, "The new value must be at least 1!") return end
 
-  m_nUpdateInterval = new_value
+  settings.update_interval = new_value
 
   if (new_value < 3) then
     printc(252, 186, 3, 255, "Values below 3 are not worth it, I would recommend using 3 or more", "This is just a warning, the interval was still changed")
@@ -375,7 +346,6 @@ local function CMD_TryToFixMaterials()
 	  ]]
 		),
 	}
-	
 end
 
 GB_GLOBALS.RegisterCommand("chams->toggle", "Toggles chams", 0, CMD_ToggleChams)

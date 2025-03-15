@@ -1,3 +1,6 @@
+local gb = GB_GLOBALS
+assert(gb, "binds: GB_GLOBALS is nil!")
+
 local json = require("src.json")
 
 local binds = {
@@ -37,7 +40,7 @@ local classes = {
 }
 
 local function RunCommand(text)
-   GB_GLOBALS.RunCommand("gb " .. text)
+   gb.RunCommand("gb " .. text)
 end
 
 ---@param usercmd UserCmd
@@ -199,12 +202,12 @@ local function CMD_PrintAllSavedBinds()
    end)
 end
 
-GB_GLOBALS.RegisterCommand("binds->create", "Creates a new bind", -1, CMD_CreateBind)
-GB_GLOBALS.RegisterCommand("binds->getall", "Prints all bind IDs and their commands", 0, CMD_GetAllBindIDs)
-GB_GLOBALS.RegisterCommand("binds->remove", "Removes a bind using a id | args: id (number)", 1, CMD_RemoveBind)
-GB_GLOBALS.RegisterCommand("binds->save", "Saves binds to a file | args: file name (string)", 1, CMD_SaveBinds)
-GB_GLOBALS.RegisterCommand("binds->load", "Loads binds from a file | args: file name (string)", 1, CMD_LoadBinds)
-GB_GLOBALS.RegisterCommand("binds->getallfiles", "Prints all the saved files", 0, CMD_PrintAllSavedBinds)
+gb.RegisterCommand("binds->create", "Creates a new bind", -1, CMD_CreateBind)
+gb.RegisterCommand("binds->getall", "Prints all bind IDs and their commands", 0, CMD_GetAllBindIDs)
+gb.RegisterCommand("binds->remove", "Removes a bind using a id | args: id (number)", 1, CMD_RemoveBind)
+gb.RegisterCommand("binds->save", "Saves binds to a file | args: file name (string)", 1, CMD_SaveBinds)
+gb.RegisterCommand("binds->load", "Loads binds from a file | args: file name (string)", 1, CMD_LoadBinds)
+gb.RegisterCommand("binds->getallfiles", "Prints all the saved files", 0, CMD_PrintAllSavedBinds)
 
 local req = {}
 

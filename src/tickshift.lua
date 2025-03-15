@@ -1,5 +1,7 @@
 local gb = GB_GLOBALS
-if not gb then return end
+local gb_settings = GB_SETTINGS
+assert(gb, "tickshift: GB_GLOBALS is nil!")
+assert(gb_settings, "tickshift: GB_SETTINGS is nil!")
 
 local SIGNONSTATE_TYPE = 6
 local CLC_MOVE_TYPE = 9
@@ -20,28 +22,6 @@ local m_localplayer_speed, m_bIsRED
 m_bIsRED = false
 
 local colors = require("src.colors")
-
-local m_settings = {
-	warp = {
-		send_key = E_ButtonCode.MOUSE_5,
-		recharge_key = E_ButtonCode.MOUSE_4,
-		while_shooting = false,
-		standing_still = false,
-
-		recharge = {
-			while_shooting = false,
-			standing_still = true,
-		},
-
-		passive = {
-			enabled = true,
-			while_dead = true,
-			min_time = 0.5,
-			max_time = 5,
-			toggle_key = E_ButtonCode.KEY_R,
-		},
-	},
-}
 
 local tickshift = {}
 
@@ -64,7 +44,7 @@ end
 ---@param msg NetMessage
 function HandleWarp(msg)
 	local player = entities:GetLocalPlayer()
-	if player and m_localplayer_speed <= 0 and not m_settings.warp.standing_still then
+	if player and m_localplayer_speed <= 0 and not gb_settings.tickshift.warp.standing_still then
 		return
 	end
 
@@ -91,7 +71,7 @@ function HandleWarp(msg)
 end
 
 local function HandlePassiveRecharge()
-	if not m_settings.warp.passive.enabled or charged_ticks >= max_ticks then
+	if not gb_settings.tickshift.warp.passive.enabled or charged_ticks >= max_ticks then
 		return false
 	end
 
@@ -100,10 +80,10 @@ local function HandlePassiveRecharge()
 
 	if
 		(globals.TickCount() >= next_passive_tick)
-		or (m_settings.warp.passive.while_dead and not player:IsAlive())
+		or (gb_settings.tickshift.warp.passive.while_dead and not player:IsAlive())
 	then
 		charged_ticks = charged_ticks + 1
-		local time = engine.RandomFloat(m_settings.warp.passive.min_time, m_settings.warp.passive.max_time)
+		local time = engine.RandomFloat(gb_settings.tickshift.warp.passive.min_time, gb_settings.tickshift.warp.passive.max_time)
 		next_passive_tick = globals.TickCount() + (time * 66.67)
 		return true
 	end
@@ -117,8 +97,8 @@ end
 
 local function HandleRecharge()
 	if
-		(shooting and not m_settings.warp.recharge.while_shooting)
-		or (m_localplayer_speed <= 0 and not m_settings.warp.recharge.standing_still)
+		(shooting and not gb_settings.tickshift.warp.recharge.while_shooting)
+		or (m_localplayer_speed <= 0 and not gb_settings.tickshift.warp.recharge.standing_still)
 	then
 		return false
 	end
@@ -196,15 +176,15 @@ function tickshift.CreateMove(usercmd)
 
 	shooting = ((usercmd.buttons & IN_ATTACK) ~= 0 or gb.bIsAimbotShooting) and gb.CanWeaponShoot()
 
-	warping = input.IsButtonDown(m_settings.warp.send_key)
+	warping = input.IsButtonDown(gb_settings.tickshift.warp.send_key)
 	gb.bWarping = warping
-	recharging = input.IsButtonDown(m_settings.warp.recharge_key)
+	recharging = input.IsButtonDown(gb_settings.tickshift.warp.recharge_key)
 
-	local state, tick = input.IsButtonPressed(m_settings.warp.passive.toggle_key)
+	local state, tick = input.IsButtonPressed(gb_settings.tickshift.warp.passive.toggle_key)
 	if state and last_key_tick < tick then
-		m_settings.warp.passive.enabled = not m_settings.warp.passive.enabled
+		gb_settings.tickshift.warp.passive.enabled = not gb_settings.tickshift.warp.passive.enabled
 		last_key_tick = tick
-		client.ChatPrintf("Passive recharge: " .. (m_settings.warp.passive.enabled and "ON" or "OFF"))
+		client.ChatPrintf("Passive recharge: " .. (gb_settings.tickshift.warp.passive.enabled and "ON" or "OFF"))
 	end
 end
 
@@ -275,7 +255,7 @@ local function unload()
 	font = nil
 	m_localplayer_speed, m_bIsRED = nil, nil
 	m_bIsRED = nil
-	m_settings = nil
+	gb_settings.tickshift = nil
 	tickshift = nil
 end
 

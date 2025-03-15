@@ -1,3 +1,8 @@
+local gb = GB_GLOBALS
+local gb_settings = GB_SETTINGS
+assert(gb, "gui: GB_GLOBALS is nil!")
+assert(gb_settings, "gui: GB_SETTINGS is nil!")
+
 ---@diagnostic disable: assign-type-mismatch
 local lib = require("src.gui utils")
 
@@ -20,7 +25,7 @@ window:AddChild(title)
 local lasty = window.y + title.y + 16
 
 --- toggles
-for key, option in pairs (GB_GLOBALS.aimbot) do
+for key, option in pairs (gb_settings.aimbot) do
    if type(option) == "boolean" then
       local button = lib.Checkbox:new()
       button.x = 2
@@ -34,8 +39,8 @@ for key, option in pairs (GB_GLOBALS.aimbot) do
       button.text_color = {255, 255, 255, 255}
       button.checked = option
       button.events.onclick = function()
-         GB_GLOBALS.aimbot[key] = not GB_GLOBALS.aimbot[key]
-         button.checked = GB_GLOBALS.aimbot[key]
+         gb_settings.aimbot[key] = not gb_settings.aimbot[key]
+         button.checked = gb_settings.aimbot[key]
       end
 
       window:AddChild(button)

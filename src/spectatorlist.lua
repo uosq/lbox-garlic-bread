@@ -1,6 +1,9 @@
+local gb = GB_GLOBALS
+local gb_settings = GB_SETTINGS
+assert(gb, "spectatorlist: GB_GLOBALS is nil!")
+assert(gb_settings, "spectatorlist: GB_SETTINGS is nil!")
+
 local feature = {}
-local m_enabled = true
-local m_starty = 0.3 -- (percentage from center screen height)
 
 ---@type table<integer, {name: string, mode: boolean}>
 local m_players = {}
@@ -20,8 +23,8 @@ local OBS_MODE = {
 
 ---@param stage E_ClientFrameStage
 local function FrameStageNotify(stage)
-   if not m_enabled then return end
-   if not stage == E_ClientFrameStage.FRAME_NET_UPDATE_END then return end
+   if not gb_settings.spectatorlist.enabled then return end
+   if not (stage == E_ClientFrameStage.FRAME_NET_UPDATE_END) then return end
 
    local localplayer = entities:GetLocalPlayer()
    if not localplayer then return end
@@ -47,19 +50,19 @@ local function FrameStageNotify(stage)
       end
    end
 
-   GB_GLOBALS.bSpectated = being_spectated
+   gb.bSpectated = being_spectated
    m_players = players_spectating
 end
 
 local function Draw()
-   if not m_enabled then return end
-   if not GB_GLOBALS.bSpectated then return end
+   if not gb_settings.spectatorlist.enabled then return end
+   if not gb.bSpectated then return end
    if not m_players then return end
    if engine:IsGameUIVisible() or engine:Con_IsVisible() then return end
 
    local width, height = draw.GetScreenSize()
    local centerx, centery = math.floor(width * 0.5), math.floor(height * 0.5)
-   local y = math.floor(centery * m_starty)
+   local y = math.floor(centery * gb_settings.spectatorlist.starty)
    local gap = 2 --- pixels
 
    for _, player in pairs (m_players) do
@@ -84,26 +87,24 @@ feature.FrameStageNotify = FrameStageNotify
 feature.Draw = Draw
 
 local function CMD_ToggleSpecList()
-   m_enabled = not m_enabled
-   printc(150, 255, 150, 255, "Spectator list is now " .. (m_enabled and "enabled" or "disabled"))
+   gb_settings.spectatorlist.enabled = not gb_settings.spectatorlist.enabled
+   printc(150, 255, 150, 255, "Spectator list is now " .. (gb_settings.spectatorlist.enabled and "enabled" or "disabled"))
 end
 
 local function CMD_SetStartY(args, num_args)
    if not args or not #args == num_args then return end
    local newy = tonumber(args[1])
    if newy then
-      m_starty = newy
+      gb_settings.spectatorlist.starty = newy
       printc(150, 150, 255, 255, "Spectator list y is changed")
    end
 end
 
-GB_GLOBALS.RegisterCommand("spectators->toggle", "Toggles the spectator list", 0, CMD_ToggleSpecList)
-GB_GLOBALS.RegisterCommand("spectators->sety", "Changes the starting Y position (percentage) of your screen, args: new y (number 0 to 1)", 1, CMD_SetStartY)
+gb.RegisterCommand("spectators->toggle", "Toggles the spectator list", 0, CMD_ToggleSpecList)
+gb.RegisterCommand("spectators->sety", "Changes the starting Y position (percentage) of your screen, args: new y (number 0 to 1)", 1, CMD_SetStartY)
 
 feature.unload = function()
    feature = nil
-   m_enabled = nil
-   m_starty = nil
    m_players = nil
    m_font = nil
    m_unformattedstr = nil

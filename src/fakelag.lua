@@ -1,15 +1,18 @@
+local gb = GB_GLOBALS
+local gb_settings = GB_SETTINGS
+assert(gb, "fakelag: GB_GLOBALS is nil!")
+assert(gb_settings, "fakelag: GB_SETTINGS is nil!")
+
+local settings = gb_settings.fakelag
+
 local fakelag = {}
 local colors = require("src.colors")
 
-local m_bEnabled = false
-local m_nTicks = 21
 local m_nChokedTicks = 0
 local m_bWarping = false
 
-local m_bIndicator = true
 local m_vecIndicatorPos = nil
 local m_angIndicatorAngles = nil
-local m_bIndicatorInFirstPerson = false
 
 ---@type Entity?
 local m_hIndicator = nil
@@ -43,14 +46,14 @@ end
 
 ---@param usercmd UserCmd
 function fakelag.CreateMove(usercmd)
-	GB_GLOBALS.bFakeLagEnabled = m_bEnabled
-	if not m_bEnabled then
+	gb.bFakeLagEnabled = settings.enabled
+	if not settings.enabled then
 		DeleteIndicator()
 		return
 	end
 
-	if m_nCurrentState == states.choking and not GB_GLOBALS.bIsAimbotShooting and not GB_GLOBALS.bIsStacRunning then
-		if GetChoked() < m_nTicks then
+	if m_nCurrentState == states.choking and not gb.bIsAimbotShooting and not gb.bIsStacRunning then
+		if GetChoked() < settings.ticks then
 			usercmd.sendpacket = usercmd.buttons & IN_ATTACK == 1
 		else
 			m_nCurrentState = states.recharging
@@ -64,7 +67,7 @@ function fakelag.CreateMove(usercmd)
 		end
 	end
 
-	if m_bIndicator and (GB_GLOBALS.bThirdperson or m_bIndicatorInFirstPerson) then
+	if settings.indicator.enabled and (gb.bThirdperson or settings.indicator.firstperson) then
 		local localplayer = entities:GetLocalPlayer()
 		if not localplayer then return end
 
@@ -94,8 +97,8 @@ end
 ---@param msg NetMessage
 ---@param returnval {ret: boolean}
 function fakelag.SendNetMsg(msg, returnval)
-	if not m_bEnabled then return true end
-	if msg:GetType() == 9 and m_bWarping and GetChoked() > 0 and not GB_GLOBALS.bIsAimbotShooting then
+	if not settings.enabled then return true end
+	if msg:GetType() == 9 and m_bWarping and GetChoked() > 0 and not gb.bIsAimbotShooting then
 		local buffer = BitBuffer()
 		CLC_Move:WriteToBitBuffer(buffer, 2, 1)
 		m_nChokedTicks = m_nChokedTicks - 1
@@ -106,7 +109,7 @@ end
 
 ---@param context DrawModelContext
 function fakelag.DrawModel(context)
-	if not m_bEnabled or not m_bIndicator then return end
+	if not settings.enabled or not settings.indicator.enabled then return end
 	local entity = context:GetEntity()
 
 	if entity == nil and m_hIndicator and m_hIndicator:ShouldDraw() and context:GetModelName() == m_sModelName then
@@ -124,18 +127,18 @@ function fakelag.DrawModel(context)
 end
 
 local function CMD_ToggleFakeLag()
-	m_bEnabled = not m_bEnabled
-	printc(150, 150, 255, 255, "Fake lag is now " .. (m_bEnabled and "enabled" or "disabled"))
+	settings.enabled = not settings.enabled
+	printc(150, 150, 255, 255, "Fake lag is now " .. (settings.enabled and "enabled" or "disabled"))
 end
 
 local function CMD_ToggleFakeLagFirstPerson()
-	m_bIndicatorInFirstPerson = not m_bIndicatorInFirstPerson
-	printc(150, 150, 255, 255, "Fake lag indicator in 1st person is now " .. (m_bIndicatorInFirstPerson and "enabled" or "disabled"))
+	settings.indicator.firstperson = not settings.indicator.firstperson
+	printc(150, 150, 255, 255, "Fake lag indicator in 1st person is now " .. (settings.indicator.firstperson and "enabled" or "disabled"))
 end
 
 local function CMD_ToggleFakeLagIndicator()
-	m_bIndicator = not m_bIndicator
-	printc(150, 150, 255, 255, "Fake lag indicator is now " .. (m_bIndicator and "enabled" or "disabled"))
+	settings.indicator.enabled = not settings.indicator.enabled
+	printc(150, 150, 255, 255, "Fake lag indicator is now " .. (settings.indicator.enabled and "enabled" or "disabled"))
 end
 
 local function CMD_SetChokeTicks(args, num_args)
@@ -144,14 +147,12 @@ local function CMD_SetChokeTicks(args, num_args)
 	local new_value = tonumber(args[1])
 	if not new_value or new_value < 0 then return end
 
-	m_nTicks = new_value
+	settings.ticks = new_value
 	printc(150, 150, 255, 255, "Changed max choked ticks")
 end
 
 function fakelag.unload()
 	DeleteIndicator()
-	m_bEnabled = nil
-	m_nTicks = nil
 	m_nChokedTicks = nil
 	m_bWarping = nil
 	m_hIndicator = nil
@@ -161,13 +162,13 @@ function fakelag.unload()
 	m_nCurrentState = nil
 	mat = nil
 	m_sModelName = nil
-	m_bIndicatorInFirstPerson = nil
+	settings.indicator.firstperson = nil
 	fakelag = nil
 end
 
-GB_GLOBALS.RegisterCommand("fakelag->toggle", "Toggles fakelag", 0, CMD_ToggleFakeLag)
-GB_GLOBALS.RegisterCommand("fakelag->set->ticks", "Sets the amount of ticks to choke | args: new value (number)", 1, CMD_SetChokeTicks)
-GB_GLOBALS.RegisterCommand("fakelag->toggle->indicator", "Toggles the fakelag indicator", 0, CMD_ToggleFakeLagIndicator)
-GB_GLOBALS.RegisterCommand("fakelag->toggle->indicator_1st_person", "Toggles the fakelag indicator to appear in first person", 0, CMD_ToggleFakeLagFirstPerson)
+gb.RegisterCommand("fakelag->toggle", "Toggles fakelag", 0, CMD_ToggleFakeLag)
+gb.RegisterCommand("fakelag->set->ticks", "Sets the amount of ticks to choke | args: new value (number)", 1, CMD_SetChokeTicks)
+gb.RegisterCommand("fakelag->toggle->indicator", "Toggles the fakelag indicator", 0, CMD_ToggleFakeLagIndicator)
+gb.RegisterCommand("fakelag->toggle->indicator_1st_person", "Toggles the fakelag indicator to appear in first person", 0, CMD_ToggleFakeLagFirstPerson)
 
 return fakelag

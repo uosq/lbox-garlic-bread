@@ -1,4 +1,5 @@
 require("src.globals")
+require("src.settings")
 require("src.commands")
 require("src.bitbuf")
 

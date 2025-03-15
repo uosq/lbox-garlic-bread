@@ -1,3 +1,8 @@
+local gb = GB_GLOBALS
+local gb_settings = GB_SETTINGS
+assert(gb, "antiaim: GB_GLOBALS is nil!")
+assert(gb_settings, "antiaim: GB_SETTINGS is nil!")
+
 ---@diagnostic disable:cast-local-type
 local antiaim = {}
 
@@ -5,10 +10,10 @@ local m_font = draw.CreateFont("TF2 BUILD", 12, 1000)
 
 ---@param usercmd UserCmd
 function antiaim.CreateMove(usercmd)
-	if GB_GLOBALS.antiaim.enabled and not GB_GLOBALS.bIsStacRunning
-	and not GB_GLOBALS.bWarping and not GB_GLOBALS.bRecharging
+	if gb_settings.antiaim.enabled and not gb.bIsStacRunning
+	and not gb.bWarping and not gb.bRecharging
 	and not (usercmd.buttons & IN_ATTACK == 1)
-	and not GB_GLOBALS.bIsAimbotShooting then
+	and not gb.bIsAimbotShooting then
 		--- make sure we aren't overchoking
 		if clientstate:GetChokedCommands() >= 21 then
 			usercmd.sendpacket = true
@@ -17,8 +22,8 @@ function antiaim.CreateMove(usercmd)
 
 		local view = engine:GetViewAngles()
 
-		local realyaw = view.y + (GB_GLOBALS.antiaim.real_yaw or 0)
-		local fakeyaw = view.y + (GB_GLOBALS.antiaim.fake_yaw or 0)
+		local realyaw = view.y + (gb_settings.antiaim.real_yaw or 0)
+		local fakeyaw = view.y + (gb_settings.antiaim.fake_yaw or 0)
 
 		local is_real_yaw_tick = usercmd.tick_count % 2 == 0
 		local yaw = is_real_yaw_tick and realyaw or fakeyaw
@@ -34,7 +39,7 @@ function antiaim.unload()
 end
 
 function antiaim.Draw()
-	if not GB_GLOBALS.antiaim.enabled then
+	if not gb_settings.antiaim.enabled then
 		return
 	end
 
@@ -59,7 +64,7 @@ function antiaim.Draw()
 
 	local viewangle = engine:GetViewAngles().y
 
-	local real_yaw, fake_yaw = GB_GLOBALS.antiaim.real_yaw + viewangle, GB_GLOBALS.antiaim.fake_yaw + viewangle
+	local real_yaw, fake_yaw = gb_settings.antiaim.real_yaw + viewangle, gb_settings.antiaim.fake_yaw + viewangle
 	local real_direction, fake_direction
 	real_direction = Vector3(math.cos(math.rad(real_yaw)), math.sin(math.rad(real_yaw)))
 	fake_direction = Vector3(math.cos(math.rad(fake_yaw)), math.sin(math.rad(fake_yaw)))
@@ -98,24 +103,24 @@ end
 
 --- SetVAngles doesn't work
 function antiaim.FrameStageNotify(stage)
-	if stage == E_ClientFrameStage.FRAME_NET_UPDATE_START and GB_GLOBALS.antiaim.enabled then
+	if stage == E_ClientFrameStage.FRAME_NET_UPDATE_START and gb_settings.antiaim.enabled then
 		local localplayer = entities:GetLocalPlayer()
 		if not localplayer then
 			return
 		end
 		local viewangles = engine:GetViewAngles()
-		local angle = Vector3(viewangles.x, viewangles.y + GB_GLOBALS.antiaim.fake_yaw, 0)
+		local angle = Vector3(viewangles.x, viewangles.y + gb_settings.antiaim.fake_yaw, 0)
 		localplayer:SetVAngles(angle)
 	end
 end
 
 local function cmd_toggle_aa()
-	if GB_GLOBALS.bIsStacRunning then
+	if gb.bIsStacRunning then
 		printc(255, 0, 0, 255, "STAC is active! Won't change AA")
 		return
 	end
-	GB_GLOBALS.antiaim.enabled = not GB_GLOBALS.antiaim.enabled
-	printc(150, 255, 150, 255, "Anti aim is now " .. (GB_GLOBALS.antiaim.enabled and "enabled" or "disabled"))
+	gb_settings.antiaim.enabled = not gb_settings.antiaim.enabled
+	printc(150, 255, 150, 255, "Anti aim is now " .. (gb_settings.antiaim.enabled and "enabled" or "disabled"))
 end
 
 local function cmd_set_options(args)
@@ -137,17 +142,17 @@ local function cmd_set_options(args)
 	--local key = "m_fl%s%s"
 	--local formatted = string.format(key, fake and "Fake" or "Real", wants_yaw and "Yaw" or "Pitch")
 	if fake then
-		GB_GLOBALS.antiaim.fake_yaw = new_value
+		gb_settings.antiaim.fake_yaw = new_value
 	elseif real then
-		GB_GLOBALS.antiaim.real_yaw = new_value
+		gb_settings.antiaim.real_yaw = new_value
 	end
 end
 
-GB_GLOBALS.RegisterCommand(
+gb.RegisterCommand(
 	"antiaim->change",
 	"Changes antiaim's yaw | args: fake or real (string), new value (number)",
 	2,
 	cmd_set_options
 )
-GB_GLOBALS.RegisterCommand("antiaim->toggle", "Toggles antiaim", 0, cmd_toggle_aa)
+gb.RegisterCommand("antiaim->toggle", "Toggles antiaim", 0, cmd_toggle_aa)
 return antiaim

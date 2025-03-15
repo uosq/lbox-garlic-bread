@@ -1,9 +1,10 @@
+local gb_settings = GB_SETTINGS
+assert(gb_settings, "movement: GB_SETTINGS is nil!")
+
 local movement = {}
-local bhop_enabled = true
 
 function movement.unload()
 	movement = nil
-	bhop_enabled = nil
 end
 
 ---@param usercmd UserCmd
@@ -13,7 +14,7 @@ local function CreateMove(usercmd)
 	local flags = localplayer:GetPropInt("m_fFlags")
 	local ground = (flags & FL_ONGROUND) ~= 0
 	local class = localplayer:GetPropInt("m_PlayerClass", "m_iClass")
-	if not GB_GLOBALS.bIsStacRunning and bhop_enabled and class ~= 1 then
+	if not GB_GLOBALS.bIsStacRunning and gb_settings.misc.bhop and class ~= 1 then
 		local jump = (usercmd.buttons & IN_JUMP) ~= 0
 		if ground and jump then
 			usercmd.buttons = usercmd.buttons | IN_JUMP
@@ -24,8 +25,8 @@ local function CreateMove(usercmd)
 end
 
 local function cmd_ToggleBhop()
-	bhop_enabled = not bhop_enabled
-	printc(150, 255, 150, 255, "Bhop is now " .. (bhop_enabled and "enabled" or "disabled"))
+	gb_settings.misc.bhop = not gb_settings.misc.bhop
+	printc(150, 255, 150, 255, "Bhop is now " .. (gb_settings.misc.bhop and "enabled" or "disabled"))
 end
 
 GB_GLOBALS.RegisterCommand("misc->toggle_bhop", "Toggles bunny hopping", 0, cmd_ToggleBhop)

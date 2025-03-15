@@ -1,58 +1,4 @@
-local aimbot_mode = { plain = "plain", smooth = "smooth", silent = "silent", assistance = "assistance" }
-
 GB_GLOBALS = {
-	aimbot = {
-		enabled = true,
-		fov = 10,
-		key = E_ButtonCode.KEY_LSHIFT,
-		autoshoot = true,
-		mode = aimbot_mode.silent,
-		lock_aim = false,
-		smooth_value = 10, --- lower value, smoother aimbot (10 = very smooth, 100 = basically plain aimbot)
-		auto_spinup = true,
-		aimfov = false,
-		epicstacbypass = true,
-
-		--- should aimbot run when using one of them?
-		hitscan = true,
-		melee = true,
-		projectile = true,
-
-		autobackstab = true,
-
-		--- engineer
-		aim_friendly_buildings = true,
-
-		ignore = {
-			cloaked = true,
-			disguised = false,
-			taunting = false,
-			bonked = true,
-			friends = false,
-			deadringer = false,
-			spectators = true,
-		},
-
-		aim = {
-			players = true,
-			npcs = true,
-			sentries = true,
-			other_buildings = true,
-		},
-	},
-
-	antiaim = {
-		enabled = false,
-		fake_yaw = 0,
-		real_yaw = 0
-	},
-
-	hud = {
-		enabled = true,
-		crosshair_size = 8,
-		crosshair_color = {255, 255, 255, 255},
-	},
-
 	bIsStacRunning = false,
 
 	bIsAimbotShooting = false,
@@ -70,4 +16,38 @@ GB_GLOBALS = {
 	bSpectated = false,
 	bThirdperson = false,
 	bFakeLagEnabled = false,
+
+	aimbot_modes = {plain = "plain", smooth = "smooth", silent = "silent", assistance = "assistance"},
+
+	flVisibleFraction = 0.4,
 }
+
+local lastFire = 0
+local nextAttack = 0
+local old_weapon = nil
+
+local function GetLastFireTime(weapon)
+	return weapon:GetPropFloat("LocalActiveTFWeaponData", "m_flLastFireTime")
+end
+
+local function GetNextPrimaryAttack(weapon)
+	return weapon:GetPropFloat("LocalActiveWeaponData", "m_flNextPrimaryAttack")
+end
+
+--- https://www.unknowncheats.me/forum/team-fortress-2-a/273821-canshoot-function.html
+function GB_GLOBALS.CanWeaponShoot()
+	local player = entities:GetLocalPlayer()
+	if not player then return false end
+
+	local weapon = player:GetPropEntity("m_hActiveWeapon")
+	if not weapon or not weapon:IsValid() then return false end
+	if weapon:GetPropInt("LocalWeaponData", "m_iClip1") == 0 then return false end
+
+	local lastfiretime = GetLastFireTime(weapon)
+	if lastFire ~= lastfiretime or weapon ~= old_weapon then
+		lastFire = lastfiretime
+		nextAttack = GetNextPrimaryAttack(weapon)
+	end
+	old_weapon = weapon
+	return nextAttack <= globals.CurTime()
+end

@@ -1,5 +1,7 @@
 local gb = GB_GLOBALS
-if not gb then return end
+local gb_settings = GB_SETTINGS
+assert(gb, "hud: GB_GLOBALS is nil!")
+assert(gb_settings, "hud: GB_SETTINGS is nil!")
 
 local colors = require("src.colors")
 local hud = {}
@@ -35,9 +37,8 @@ local localplayer = {
 function hud.Draw()
    if not localplayer or not localplayer.m_alive then return end
    if engine:Con_IsVisible() or engine:IsGameUIVisible() then return end
-   if not gb then return end
 
-   if not gb.hud.enabled then
+   if not gb_settings.hud.enabled then
       local cl_drawhud = client.GetConVar("cl_drawhud")
       if cl_drawhud == 0 then
          client.SetConVar("cl_drawhud", "1")
@@ -115,8 +116,8 @@ function hud.Draw()
    end
 
    do --- crosshair
-      local size = gb.hud.crosshair_size
-      local color = gb.hud.crosshair_color
+      local size = gb_settings.hud.crosshair_size
+      local color = gb_settings.hud.crosshair_color
       local x1, y1, x2, y2
 
       --- horizontal line
@@ -180,8 +181,8 @@ function hud.unload()
 end
 
 local function CMD_ToggleHUD()
-   gb.hud.enabled = not gb.hud.enabled
-   printc(150, 150, 255, 255, "The experimental hud is now " .. (gb.hud.enabled and "enabled" or "disabled"))
+   gb_settings.hud.enabled = not gb_settings.hud.enabled
+   printc(150, 150, 255, 255, "The experimental hud is now " .. (gb_settings.hud.enabled and "enabled" or "disabled"))
 end
 
 gb.RegisterCommand("hud->toggle", "Toggles garlic bread's hud", 0, CMD_ToggleHUD)
