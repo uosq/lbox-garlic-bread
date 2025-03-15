@@ -91,7 +91,7 @@ GB_SETTINGS = {
 	visuals = {
 		custom_fov = 120,
 		thirdperson = {
-			enabled = true,
+			enabled = false,
 			offset = {up = 0, right = 0, forward = 0},
 		}
 	},
