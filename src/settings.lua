@@ -2,7 +2,7 @@ local aimbot_mode = { plain = "plain", smooth = "smooth", silent = "silent", ass
 
 GB_SETTINGS = {
 	aimbot = {
-		enabled = false,
+		enabled = true,
 		fov = 10,
 		key = E_ButtonCode.KEY_LSHIFT,
 		autoshoot = true,
@@ -46,7 +46,7 @@ GB_SETTINGS = {
 		key = E_ButtonCode.KEY_LSHIFT, --- no key means it will run in the background
 		fov = 4.5,
 		filter = {
-			hitscan = true,
+			hitscan = false,
 			autobackstab = true,
 			autowrench = true,
 			melee = true,

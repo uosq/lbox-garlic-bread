@@ -32,9 +32,7 @@ local BUILDINGS = {
 
 local TraceLine = engine.TraceLine
 local sqrt = math.sqrt
-local atan = math.atan
 local PI = math.pi
-local RADPI = 180 / PI
 local vecMultiply = vector.Multiply
 
 ---
@@ -157,13 +155,8 @@ local function CreateMove(usercmd)
 	if not input.IsButtonDown(gb_settings.aimbot.key) then return end
 	if engine.IsChatOpen() or engine.Con_IsVisible() or engine.IsGameUIVisible() then return end
 
-	--- if it returns true, it means it was a melee weapon and it did the proper math for them
-	if weapon:IsMeleeWeapon() then
-		if gb_settings.aimbot.melee then
-			RunMelee(usercmd)
-		end
-		return
-	end
+	--- if it returns true, it means it was a melee weapon and we hope triggerbot is enabled
+	if weapon:IsMeleeWeapon() then return end
 
 	if (weapon:GetPropInt("LocalWeaponData", "m_iClip1") == 0) then return end
 
@@ -334,18 +327,6 @@ local function CreateMove(usercmd)
 	if (gb_settings.aimbot.auto_spinup and weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_MINIGUN) then
 		usercmd.buttons = usercmd.buttons | IN_ATTACK2
 	end
-
-	if gb_settings.aimbot.epicstacbypass and usercmd.buttons & IN_ATTACK == 1 then
-		usercmd.buttons = usercmd.buttons | IN_LEFT
-		usercmd.buttons = usercmd.buttons | IN_RIGHT
-	end
-end
-
----@param stage E_ClientFrameStage
-local function FrameStageNotify(stage)
-	if stage == E_ClientFrameStage.FRAME_NET_UPDATE_END and localplayer and weapon then
-		bReadyToBackstab = weapon:GetPropBool("m_bReadyToBackstab")
-	end
 end
 
 local function Draw()
@@ -429,27 +410,16 @@ gb.RegisterCommand("aimbot->toggle->stacbypass", "Toggles the **epic** stac bypa
 
 local aimbot = {}
 aimbot.CreateMove = CreateMove
-aimbot.FrameStageNotify = FrameStageNotify
 aimbot.Draw = Draw
 
 local function unload()
-	gb_settings.aimbot = nil
-	bReadyToBackstab = nil
 	localplayer, weapon, m_team = nil, nil, nil
 	width, height = nil, nil
 	CLASS_HITBOXES = nil
-	gb.flVisibleFraction = nil
 	HEADSHOT_WEAPONS_INDEXES = nil
-	ENGINEER_CLASS = nil
-	MAX_UPGRADE_LEVEL = nil
-	BUILDINGS = nil
 	TraceLine = nil
 	sqrt = nil
-	atan = nil
-	PI = nil
-	RADPI = nil
 	vecMultiply = nil
-	gb.CanWeaponShoot = nil
 	aimbot = nil
 end
 
