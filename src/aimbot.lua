@@ -76,12 +76,6 @@ local function GetBoneOrigin(bone)
 	return Vector3(bone[1][4], bone[2][4], bone[3][4])
 end
 
----@param vec Vector3
-local function ToAngle(vec)
-	local hyp = sqrt((vec.x * vec.x) + (vec.y * vec.y))
-	return Vector3(atan(-vec.z, hyp) * RADPI, atan(vec.y, vec.x) * RADPI, 0)
-end
-
 ---@param usercmd UserCmd
 ---@param targetIndex integer
 local function MakeWeaponShoot(usercmd, targetIndex)
@@ -165,7 +159,9 @@ local function CreateMove(usercmd)
 
 	--- if it returns true, it means it was a melee weapon and it did the proper math for them
 	if weapon:IsMeleeWeapon() then
-		RunMelee(usercmd)
+		if gb_settings.aimbot.melee then
+			RunMelee(usercmd)
+		end
 		return
 	end
 
@@ -200,7 +196,7 @@ local function CreateMove(usercmd)
 
 			local trace = TraceLine(shoot_pos, center, MASK_SHOT_HULL)
 			if trace and trace.entity == entity and trace.fraction >= gb.flVisibleFraction then
-				local angle = ToAngle(center - shoot_pos) - (usercmd.viewangles - punchangles)
+				local angle = gb.ToAngle(center - shoot_pos) - (usercmd.viewangles - punchangles)
 				local fov = sqrt((angle.x ^ 2) + (angle.y ^ 2))
 
 				if fov < best_fov then
@@ -257,7 +253,7 @@ local function CreateMove(usercmd)
 		if not trace then goto continue end
 
 		local function do_aimbot_calc()
-			local angle = ToAngle(bone_position - shoot_pos) - (usercmd.viewangles - punchangles)
+			local angle = gb.ToAngle(bone_position - shoot_pos) - (usercmd.viewangles - punchangles)
 			local fov = sqrt((angle.x ^ 2) + (angle.y ^ 2))
 
 			if fov < best_fov then

@@ -22,6 +22,9 @@ GB_GLOBALS = {
 	flVisibleFraction = 0.4,
 }
 
+local sqrt, atan = math.sqrt, math.atan
+local RADPI = 180/math.pi
+
 local lastFire = 0
 local nextAttack = 0
 local old_weapon = nil
@@ -50,4 +53,10 @@ function GB_GLOBALS.CanWeaponShoot()
 	end
 	old_weapon = weapon
 	return nextAttack <= globals.CurTime()
+end
+
+---@param vec Vector3
+function GB_GLOBALS.ToAngle(vec)
+	local hyp = sqrt((vec.x * vec.x) + (vec.y * vec.y))
+	return Vector3(atan(-vec.z, hyp) * RADPI, atan(vec.y, vec.x) * RADPI, 0)
 end

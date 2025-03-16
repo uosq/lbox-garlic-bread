@@ -2,7 +2,7 @@ local aimbot_mode = { plain = "plain", smooth = "smooth", silent = "silent", ass
 
 GB_SETTINGS = {
 	aimbot = {
-		enabled = true,
+		enabled = false,
 		fov = 10,
 		key = E_ButtonCode.KEY_LSHIFT,
 		autoshoot = true,
@@ -15,7 +15,7 @@ GB_SETTINGS = {
 
 		--- should aimbot run when using one of them?
 		hitscan = true,
-		melee = true,
+		melee = false,
 		projectile = true,
 
 		autobackstab = true,
@@ -41,6 +41,18 @@ GB_SETTINGS = {
 		},
 	},
 
+	triggerbot = {
+		enabled = true,
+		key = E_ButtonCode.KEY_LSHIFT, --- no key means it will run in the background
+		fov = 4.5,
+		filter = {
+			hitscan = true,
+			autobackstab = true,
+			autowrench = true,
+			melee = true,
+		}
+	},
+
 	antiaim = {
 		enabled = false,
 		fake_yaw = 0,
@@ -48,7 +60,7 @@ GB_SETTINGS = {
 	},
 
 	hud = {
-		enabled = true,
+		enabled = false,
 		crosshair_size = 8,
 		crosshair_color = {255, 255, 255, 255},
 	},
