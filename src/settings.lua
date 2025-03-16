@@ -15,13 +15,7 @@ GB_SETTINGS = {
 
 		--- should aimbot run when using one of them?
 		hitscan = true,
-		melee = false,
 		projectile = true,
-
-		autobackstab = true,
-
-		--- engineer
-		aim_friendly_buildings = true,
 
 		ignore = {
 			cloaked = true,
