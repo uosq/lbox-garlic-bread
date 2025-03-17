@@ -1,6 +1,10 @@
+--- just to be sure
+filesystem.CreateDirectory("Garlic Bread")
+
+require("src.welcome")
 require("src.globals")
-require("src.settings")
 require("src.commands")
+require("src.settings")
 require("src.bitbuf")
 
 --- make them run before tickshift so we dont return before it
@@ -56,6 +60,7 @@ callbacks.Register("FrameStageNotify", "FSN garlic bread", function(stage)
 	triggerbot.FrameSageNotify(stage)
 	visuals.FrameStageNotify(stage)
 	spectators.FrameStageNotify(stage)
+	esp.FrameStageNotify(stage)
 end)
 
 ---@param context DrawModelContext
@@ -74,7 +79,7 @@ callbacks.Register("CreateMove", "CM garlic bread", function(usercmd)
 	fakelag.CreateMove(usercmd)
 	triggerbot.CreateMove(usercmd)
 	aimbot.CreateMove(usercmd)
-	esp.CreateMove(usercmd)
+	--esp.CreateMove(usercmd)
 	tickshift.CreateMove(usercmd)
 	antiaim.CreateMove(usercmd)
 	movement.CreateMove(usercmd)
@@ -90,6 +95,10 @@ callbacks.Register("Unload", "UL garlic bread unload", function()
 	callbacks.Unregister("DrawModel", "DME garlic bread")
 	callbacks.Unregister("FireGameEvent", "GE garlic bread")
 	callbacks.Unregister("CreateMove", "CM garlic bread")
+
+	do --- save settings
+	
+	end
 
 	antiaim.unload()
 	spectators.unload()

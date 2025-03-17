@@ -1,4 +1,6 @@
 local aimbot_mode = { plain = "plain", smooth = "smooth", silent = "silent", assistance = "assistance" }
+local json = require("src.json")
+filesystem.CreateDirectory("Garlic Bread/Configs")
 
 GB_SETTINGS = {
 	aimbot = {
@@ -126,6 +128,12 @@ GB_SETTINGS = {
 				toggle_key = E_ButtonCode.KEY_R,
 			},
 		},
+
+		doubletap = {
+			enabled = true,
+			key = E_ButtonCode.KEY_F,
+			ticks = 24,
+		},
 	},
 
 	spectatorlist = {
@@ -133,3 +141,41 @@ GB_SETTINGS = {
 		starty = 0.3, -- (percentage from center screen height)
 	},
 }
+
+local function CMD_SaveSettings(args, num_args)
+	if not args or #args ~= num_args then return end
+
+	local filename = tostring(args[1])
+	if not filename then return end
+
+	local encoded = json.encode(GB_SETTINGS)
+	io.output("Garlic Bread/Configs/"..filename)
+	io:write(encoded)
+	io.flush()
+	io.close()
+end
+
+local function CMD_LoadSettings(args, num_args)
+	if not args or #args ~= num_args then return end
+
+	local filename = tostring(args[1])
+	if not filename then return end
+
+	local file = io.open("Garlic Bread/Configs/"..filename)
+	if file then
+		local content = file:read("a")
+		local decoded = json.decode(content)
+		GB_SETTINGS = decoded
+		file:close()
+	end
+end
+
+local function CMD_GetAllSettingsFiles()
+	filesystem.EnumerateDirectory("Garlic Bread/Configs/*.json", function (filename, attributes)
+		print(filename:gsub(".json", ""))
+	end)
+end
+
+GB_GLOBALS.RegisterCommand("settings->save", "Saves your config | args: file name (string)", 1, CMD_SaveSettings)
+GB_GLOBALS.RegisterCommand("settings->load", "Loads a config | args: file name (string)", 1, CMD_LoadSettings)
+GB_GLOBALS.RegisterCommand("settings->getconfigs", "Prints all configs", 0, CMD_GetAllSettingsFiles)

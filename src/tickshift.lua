@@ -7,6 +7,8 @@ local SIGNONSTATE_TYPE = 6
 local CLC_MOVE_TYPE = 9
 
 local charged_ticks = 0
+local dt_ticks = 0
+
 local max_ticks = 0
 local last_key_tick = 0
 local next_passive_tick = 0
@@ -159,6 +161,21 @@ function tickshift.SendNetMsg(msg, returnval)
 	end
 end
 
+--- thanks Glitch!
+---@param usercmd UserCmd
+---@param player Entity
+local function AntiWarp(player, usercmd)
+	local vel = player:EstimateAbsVelocity()
+	local flags = player:GetPropInt("m_fFlags")
+	if (flags & FL_ONGROUND) == 0 or vel:Length2D() <= 15 or (usercmd.buttons & IN_JUMP) ~= 0 then return end
+
+	local yaw = engine:GetViewAngles().y
+	local dir = vel:Angles()
+	dir.y = yaw - dir.y
+	local forward = dir:Forward() * -vel:Length2D()
+	usercmd.forwardmove, usercmd.sidemove = forward.x, forward.y
+end
+
 ---@param usercmd UserCmd
 function tickshift.CreateMove(usercmd)
 	if engine.IsChatOpen() or engine.IsGameUIVisible() or engine.Con_IsVisible()
@@ -178,13 +195,33 @@ function tickshift.CreateMove(usercmd)
 
 	warping = input.IsButtonDown(gb_settings.tickshift.warp.send_key)
 	gb.bWarping = warping
-	recharging = input.IsButtonDown(gb_settings.tickshift.warp.recharge_key)
+	recharging = input.IsButtonDown(gb_settings.tickshift.warp.recharge_key) and charged_ticks < max_ticks
 
 	local state, tick = input.IsButtonPressed(gb_settings.tickshift.warp.passive.toggle_key)
 	if state and last_key_tick < tick then
 		gb_settings.tickshift.warp.passive.enabled = not gb_settings.tickshift.warp.passive.enabled
 		last_key_tick = tick
 		client.ChatPrintf("Passive recharge: " .. (gb_settings.tickshift.warp.passive.enabled and "ON" or "OFF"))
+	end
+
+	if gb_settings.tickshift.doubletap.enabled and input.IsButtonDown(gb_settings.tickshift.doubletap.key) and usercmd.buttons & IN_ATTACK ~= 0 then
+		if dt_ticks < gb_settings.tickshift.doubletap.ticks then
+			AntiWarp(player, usercmd)
+		end
+
+		if dt_ticks < gb_settings.tickshift.doubletap.ticks and charged_ticks > 0 then
+			dt_ticks = dt_ticks + 1
+			charged_ticks = charged_ticks - 1
+			usercmd.sendpacket = false
+		end
+
+		if clientstate:GetChokedCommands() >= gb_settings.tickshift.doubletap.ticks or dt_ticks >= max_ticks then
+			usercmd.command_number = 2147483647
+			usercmd.tick_count = 2147483647
+			usercmd.sendpacket = true
+			dt_ticks = 0
+			charged_ticks = 0
+		end
 	end
 end
 

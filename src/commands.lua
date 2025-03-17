@@ -74,8 +74,6 @@ end
 
 RegisterCommand("help", "prints all command's description and usage", 0, print_help)
 
-printc(255, 255, 255, 255, "You can use 'gb help' command to print all the console commands")
-
 GB_GLOBALS.RegisterCommand = RegisterCommand
 GB_GLOBALS.RunCommand = RunCommand
 

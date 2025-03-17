@@ -97,11 +97,12 @@ local function DrawHealth(bottom, health, maxhealth)
    end
 end
 
----@param usercmd UserCmd
-function esp.CreateMove(usercmd)
+----@param usercmd UserCmd
+function esp.FrameStageNotify(stage)
    if not m_enabled then return end
+   if not (stage == E_ClientFrameStage.FRAME_NET_UPDATE_END) then return end
    if engine:IsGameUIVisible() or engine:Con_IsVisible() then return end
-   if (usercmd.tick_count % update_interval) ~= 0 then return end
+   --if (usercmd.tick_count % update_interval) ~= 0 then return end
 
    local localplayer = entities:GetLocalPlayer()
    if not localplayer then return end
