@@ -49,6 +49,12 @@ GB_SETTINGS = {
 		}
 	},
 
+	esp = {
+		hide_cloaked = true,
+		enemy_only = true,
+		visible_only = true,
+	},
+
 	antiaim = {
 		enabled = false,
 		fake_yaw = 0,
@@ -69,21 +75,22 @@ GB_SETTINGS = {
 		original_player_mat = false,
 		original_viewmodel_mat = false,
 		ignore_disguised_spy = true,
+		ignore_cloaked_spy = true,
 
 		filter = {
-			HEALTHPACK = true,
-			AMMOPACK = true,
-			VIEWMODEL_ARM = true,
-			VIEWMODEL_WEAPON = true,
-			PLAYERS = true,
-			SENTRIES = true,
-			DISPENSERS = true,
-			TELEPORTERS = true,
-			MONEY = true,
-			LOCALPLAYER = true,
-			ANTIAIM = true,
-			BACKTRACK = true,
-			RAGDOLLS = true,
+			healthpack = true,
+			ammopack = true,
+			viewmodel_arm = true,
+			viewmodel_weapon = true,
+			players = true,
+			sentries = true,
+			dispensers = true,
+			teleporters = true,
+			money = true,
+			localplayer = true,
+			antiaim = true,
+			backtrack = true,
+			ragdolls = true,
 		},
 	},
 

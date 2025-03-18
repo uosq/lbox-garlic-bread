@@ -1,24 +1,7 @@
----@class EntityTable
----@field topleft Vector3
----@field topright Vector3
----@field bottomleft Vector3
----@field bottomright Vector3
----@field color integer[]?
----@field class integer
----@field top Vector3
----@field health integer
----@field maxhealth integer
----@field bottom Vector3
-----@field entityIndex integer
-
 local esp = {}
-
----@type EntityTable[]
-local players = {}
 
 local m_enabled = true
 local font = draw.CreateFont("TF2 BUILD", 12, 1000)
-local update_interval = 2 --- every 2 ticks its updated
 
 local mrad = math.rad
 local mcos = math.cos
@@ -27,6 +10,8 @@ local dline = draw.Line
 
 local utils = require("src.esputils")
 local colors = require("src.colors")
+
+local settings = GB_SETTINGS.esp
 
 local classes = {
    [1] = "scout",
@@ -97,31 +82,40 @@ local function DrawHealth(bottom, health, maxhealth)
    end
 end
 
-----@param usercmd UserCmd
-function esp.FrameStageNotify(stage)
+function esp.Draw()
    if not m_enabled then return end
-   if not (stage == E_ClientFrameStage.FRAME_NET_UPDATE_END) then return end
    if engine:IsGameUIVisible() or engine:Con_IsVisible() then return end
-   --if (usercmd.tick_count % update_interval) ~= 0 then return end
 
    local localplayer = entities:GetLocalPlayer()
    if not localplayer then return end
 
+   local team = localplayer:GetTeamNumber()
+   local eyeangles = localplayer:GetAbsOrigin() + localplayer:GetPropVector("m_vecViewOffset[0]")
    local viewangles = engine:GetViewAngles()
    local rightrad = mrad(viewangles.y + 90)
    local leftrad = mrad(viewangles.y - 90)
 
    local localindex = localplayer:GetIndex()
-
-   ---@type EntityTable[]
-   local entitytable = {}
+   local rightVector = Vector3(mcos(rightrad), msin(rightrad), 0)
+   local leftVector = Vector3(mcos(leftrad), msin(leftrad), 0)
 
    for _, player in pairs (Players) do
-      if player and player:IsValid() and player:IsAlive() and not player:IsDormant() and (localindex ~= player:GetIndex() or GB_GLOBALS.bThirdperson) then
+      if player and player:IsValid() and player:IsAlive() and not player:IsDormant()
+      and (localindex ~= player:GetIndex() or GB_GLOBALS.bThirdperson) then
+
+         --- i dont like goto but nothing i can do here :/
+         if settings.enemy_only and player:GetTeamNumber() == team then goto continue end
+         if player:InCond(E_TFCOND.TFCond_Cloaked) and settings.hide_cloaked then goto continue end
+
          local origin, mins, maxs = player:GetAbsOrigin(), player:GetMins(), player:GetMaxs()
          local center = origin + ((maxs + mins) * 0.5)
-         local rightVector = Vector3(mcos(rightrad), msin(rightrad), 0)
-         local leftVector = Vector3(mcos(leftrad), msin(leftrad), 0)
+
+         if settings.visible_only then
+            local trace = engine.TraceLine(eyeangles, center, MASK_SHOT_HULL)
+            if not trace or trace.entity ~= player or trace.fraction < GB_GLOBALS.flVisibleFraction then
+               goto continue
+            end
+         end
 
 			local topleft = utils.GetEntityTopLeft(center, mins, maxs, leftVector)
 			local topright = utils.GetEntityTopRight(origin, mins, maxs, rightVector)
@@ -134,43 +128,21 @@ function esp.FrameStageNotify(stage)
          local maxhealth = player:GetMaxHealth()
          local bottom = player:GetAbsOrigin()
 
-         entitytable[#entitytable+1] =
-         {
-            topleft = topleft,
-            topright = topright,
-            bottomright = bottomright,
-            bottomleft = bottomleft,
-            top = top,
-            color = color,
-            class = class,
-            health = health,
-            maxhealth = maxhealth,
-            bottom = bottom,
-         }
+         local r, g, b, _ = table.unpack(color or {255, 255, 255})
+         local a = 255
+         draw.Color(r, g, b, a)
+         DrawBox(topleft, topright, bottomleft, bottomright)
+         DrawClass(top, class)
+         DrawHealth(bottom, health, maxhealth)
+         ::continue::
       end
-   end
-   players = entitytable
-end
-
-function esp.Draw()
-   if not m_enabled then return end
-   if engine:IsGameUIVisible() or engine:Con_IsVisible() then return end
-   for _, player in ipairs (players) do
-      local r, g, b, _ = table.unpack(player.color or {255, 255, 255})
-      local a = 255
-      draw.Color(r, g, b, a)
-      DrawBox(player.topleft, player.topright, player.bottomleft, player.bottomright)
-      DrawClass(player.top, player.class)
-      DrawHealth(player.bottom, player.health, player.maxhealth)
    end
 end
 
 function esp.unload()
    esp = nil
-   players = nil
    m_enabled = nil
    font = nil
-   update_interval = nil
    mrad = nil
    mcos = nil
    msin = nil
@@ -185,14 +157,5 @@ local function CMD_ToggleESP()
    printc(150, 150, 255, 255, "ESP is now " .. (m_enabled and "enabled" or "disabled"))
 end
 
-local function CMD_SetUpdateInterval(args, num_args)
-   if not args or #args ~= num_args then return end
-   if not args[1] then return end
-   local new_value = tonumber(args[1])
-   update_interval = new_value > 0 and new_value or 2
-   printc(150, 150, 255, 255, "Update interval was changed!")
-end
-
 GB_GLOBALS.RegisterCommand("esp->toggle", "Toggles esp", 0, CMD_ToggleESP)
-GB_GLOBALS.RegisterCommand("esp->update_interval", "Changes the ESP's update interval | args: new value (string, default is 2)", 1, CMD_SetUpdateInterval)
 return esp

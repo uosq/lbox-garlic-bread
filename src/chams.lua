@@ -91,12 +91,12 @@ local function update_entities()
 		local entity = entities.GetByIndex(i)
 		if (not entity) then goto continue end
 		if (entity:IsDormant()) then goto continue end
-		if (not settings.filter.LOCALPLAYER and i == localindex) then goto continue end
+		if (not settings.filter.localplayer and i == localindex) then goto continue end
 		local class = entity:GetClass()
 		local team = entity:GetTeamNumber()
 
 		if (settings.enemy_only and team == localteam) then goto continue end
-		if (settings.filter.PLAYERS and entity:IsPlayer() and entity:IsAlive()) then
+		if (settings.filter.players and entity:IsPlayer() and entity:IsAlive()) then
 			if (entity:InCond(E_TFCOND.TFCond_Disguised) and settings.ignore_disguised_spy) then goto continue end
 
 			entity_list_color_back[i] = COLORS.get_entity_color(entity)
@@ -109,8 +109,8 @@ local function update_entities()
 		else
 			--- excluding ragdolls, they aren't alive >:)
 			if (entity:GetHealth() >= 1) then
-				if ((settings.filter.SENTRIES and class == SENTRY_CLASS) or (settings.filter.DISPENSERS and class == DISPENSER_CLASS)
-						 or (settings.filter.TELEPORTERS and class == TELEPORTER_CLASS)) then
+				if ((settings.filter.sentries and class == SENTRY_CLASS) or (settings.filter.dispensers and class == DISPENSER_CLASS)
+						 or (settings.filter.teleporters and class == TELEPORTER_CLASS)) then
 					entity_list_color_back[i] = COLORS.get_entity_color(entity)
 					goto continue
 				end
@@ -121,7 +121,7 @@ local function update_entities()
 				end
 			end
 
-			if (settings.filter.RAGDOLLS and (class == "CTFRagdoll" or class == "CRagdollProp" or class == "CRagdollPropAttached")) then
+			if (settings.filter.ragdolls and (class == "CTFRagdoll" or class == "CRagdollProp" or class == "CRagdollPropAttached")) then
 				entity_list_color_back[i] = entity:GetPropInt("m_iTeam") == TEAM_RED and COLORS.RAGDOLL_RED or
 					 COLORS.RAGDOLL_BLU
 				goto continue
@@ -131,7 +131,7 @@ local function update_entities()
 	end
 
 	--- lol viewmodel is not in entity list
-	if (settings.filter.VIEWMODEL_ARM) then
+	if (settings.filter.viewmodel_arm) then
 		local viewmodel = me:GetPropEntity("m_hViewModel[0]")
 		if (viewmodel) then
 			entity_list_color_back[viewmodel:GetIndex()] = COLORS.get_entity_color(viewmodel)
@@ -139,7 +139,7 @@ local function update_entities()
 	end
 
 	--- lol ammo and healthpacks arent in entity list xd
-	if (settings.filter.AMMOPACK or settings.filter.HEALTHPACK) then
+	if (settings.filter.ammopack or settings.filter.healthpack) then
 		local cbasenimating = entities.FindByClass("CBaseAnimating")
 		for _, entity in pairs (cbasenimating) do
 				--- medkit, ammopack
@@ -148,9 +148,9 @@ local function update_entities()
 				local model_name = string.lower(models.GetModelName(model))
 				if (model_name) then
 					local i = entity:GetIndex()
-					if (settings.filter.AMMOPACK and string.find(model_name, "ammo")) then
+					if (settings.filter.ammopack and string.find(model_name, "ammo")) then
 						entity_list_color_back[i] = COLORS.AMMOPACK
-					elseif (settings.filter.HEALTHPACK and (string.find(model_name, "health") or string.find(model_name, "medkit"))) then
+					elseif (settings.filter.healthpack and (string.find(model_name, "health") or string.find(model_name, "medkit"))) then
 						entity_list_color_back[i] = COLORS.HEALTHKIT
 					end
 				end
@@ -200,7 +200,7 @@ function chams.DrawModel(context)
 
 	local drawing_backtrack, drawing_antiaim = context:IsDrawingBackTrack(), context:IsDrawingAntiAim()
 	if (drawing_antiaim or drawing_backtrack) then
-		if ((drawing_antiaim and settings.filter.ANTIAIM) or (drawing_backtrack and settings.filter.BACKTRACK)) then
+		if ((drawing_antiaim and settings.filter.antiaim) or (drawing_backtrack and settings.filter.backtrack)) then
 			local color = (drawing_antiaim and COLORS.ANTIAIM or COLORS.BACKTRACK)
 			ChangeMaterialForIndicators(context, material, color)
 		end
@@ -221,7 +221,7 @@ function chams.DrawModel(context)
 		context:SetAlphaModulation(a)
 		context:ForcedMaterialOverride(material)
 	end
-	
+
 	if not entity then return end
 
 	local index = entity:GetIndex()
@@ -240,6 +240,11 @@ function chams.DrawModel(context)
       context:SetColorModulation(r, g, b)
       context:SetAlphaModulation(a)
     elseif (class == "CTFPlayer") then
+
+		if entity:InCond(E_TFCOND.TFCond_Cloaked) and settings.ignore_cloaked_spy then
+			return
+		end
+
       local r, g, b, a = get_color(table.unpack(COLORS.ORIGINAL_PLAYER))
       context:SetColorModulation(r, g, b)
       context:SetAlphaModulation(a)
@@ -253,7 +258,7 @@ function chams.DrawModel(context)
 	context:ForcedMaterialOverride(material)
 	context:SetColorModulation(r, g, b)
 
-	if (not settings.filterVisibleOnly) then
+	if (not settings.visible_only) then
 		context:DepthRange(0, (class == VIEWMODEL_ARM_CLASS and 0.1 or 0.2))
 	end
 
