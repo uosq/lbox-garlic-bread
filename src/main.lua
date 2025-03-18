@@ -24,6 +24,7 @@ local visuals = require("src.visuals")
 local movement = require("src.movement")
 local chams = require("src.chams")
 local binds = require("src.binds")
+local mats = require("src.custom materials")
 
 require("src.convars")
 require("src.background")
@@ -69,6 +70,10 @@ callbacks.Register("DrawModel", "DME garlic bread", function(context)
 	chams.DrawModel(context)
 end)
 
+callbacks.Register("DrawStaticProps", "DSP garlic bread", function(info)
+	mats.DrawStaticProps(info)
+end)
+
 ---@param event GameEvent
 callbacks.Register("FireGameEvent", "GE garlic bread", function(event)
 	binds.FireGameEvent(event)
@@ -79,7 +84,6 @@ callbacks.Register("CreateMove", "CM garlic bread", function(usercmd)
 	fakelag.CreateMove(usercmd)
 	triggerbot.CreateMove(usercmd)
 	aimbot.CreateMove(usercmd)
-	--esp.CreateMove(usercmd)
 	tickshift.CreateMove(usercmd)
 	antiaim.CreateMove(usercmd)
 	movement.CreateMove(usercmd)
@@ -95,10 +99,7 @@ callbacks.Register("Unload", "UL garlic bread unload", function()
 	callbacks.Unregister("DrawModel", "DME garlic bread")
 	callbacks.Unregister("FireGameEvent", "GE garlic bread")
 	callbacks.Unregister("CreateMove", "CM garlic bread")
-
-	do --- save settings
-	
-	end
+	callbacks.Unregister("DrawStaticProps", "DSP garlic bread")
 
 	antiaim.unload()
 	spectators.unload()
@@ -114,6 +115,7 @@ callbacks.Register("Unload", "UL garlic bread unload", function()
 	gui.unload()
 	hud.unload()
 	spoof.unload()
+	mats.unload()
 	GB_GLOBALS = nil
 	collectgarbage("collect")
 end)

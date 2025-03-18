@@ -27,10 +27,5 @@ The file is exported to $\color{maroon}{\textsf{build/garlic-bread.lua}}$
 
 - GUI
 - Stop using console commands to configure the cheat (its ugly)
-- ESP
-- CHAMS
-- GLOW (not sure if i'll add it)
-- TRIGGERBOT
-- AUTOBACKSTAB
 - More...
 
