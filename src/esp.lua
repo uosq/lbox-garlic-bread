@@ -3,6 +3,9 @@ local esp = {}
 local m_enabled = true
 local font = draw.CreateFont("TF2 BUILD", 12, 1000)
 
+local mfloor = math.floor
+local mmin = math.min
+local mmax = math.max
 local mrad = math.rad
 local mcos = math.cos
 local msin = math.sin
@@ -53,18 +56,18 @@ local function DrawClass(top, class)
       draw.SetFont(font)
       local str = tostring(classes[class])
       local textw, texth = draw.GetTextSize(str)
-      draw.TextShadow(math.floor(pos.x - textw/2), math.floor(pos.y - texth), str)
+      draw.TextShadow(mfloor(pos.x - textw/2), mfloor(pos.y - texth), str)
    end
 end
 
 local function GetHealthColor(currenthealth, maxhealth)
     local healthpercentage = currenthealth / maxhealth
-    healthpercentage = math.max(0, math.min(1, healthpercentage))
+    healthpercentage = mmax(0, mmin(1, healthpercentage))
     local red = 1 - healthpercentage
     local green = healthpercentage
-    red = math.max(0, math.min(1, red))
-    green = math.max(0, math.min(1, green))
-    return math.floor(255 * red), math.floor(255 * green), 0
+    red = mmax(0, mmin(1, red))
+    green = mmax(0, mmin(1, green))
+    return mfloor(255 * red), mfloor(255 * green), 0
 end
 
 ---@param bottom Vector3
@@ -77,8 +80,8 @@ local function DrawHealth(bottom, health, maxhealth)
       local textw, _ = draw.GetTextSize(str)
       local r, g, b, a = GetHealthColor(health, maxhealth)
       a = 255
-      draw.Color(math.floor(r), math.floor(g), math.floor(b), a)
-      draw.TextShadow(math.floor(pos.x - textw/2), math.floor(pos.y), str)
+      draw.Color(mfloor(r), mfloor(g), mfloor(b), a)
+      draw.TextShadow(mfloor(pos.x - textw/2), mfloor(pos.y), str)
    end
 end
 

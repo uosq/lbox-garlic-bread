@@ -71,7 +71,7 @@ GB_SETTINGS = {
 		enabled = true,
 		update_interval = 5, --- ticks
 		enemy_only = false,
-		visible_only = true,
+		visible_only = false,
 		original_player_mat = false,
 		original_viewmodel_mat = false,
 		ignore_disguised_spy = true,
@@ -104,7 +104,7 @@ GB_SETTINGS = {
 	},
 
 	visuals = {
-		custom_fov = 120,
+		custom_fov = 90,
 		thirdperson = {
 			enabled = false,
 			offset = {up = 0, right = 0, forward = 0},
