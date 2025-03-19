@@ -1,6 +1,5 @@
 local esp = {}
 
-local m_enabled = true
 local font = draw.CreateFont("TF2 BUILD", 12, 1000)
 
 local mfloor = math.floor
@@ -86,7 +85,7 @@ local function DrawHealth(bottom, health, maxhealth)
 end
 
 function esp.Draw()
-   if not m_enabled then return end
+   if not settings.enabled then return end
    if engine:IsGameUIVisible() or engine:Con_IsVisible() then return end
 
    local localplayer = entities:GetLocalPlayer()
@@ -144,7 +143,6 @@ end
 
 function esp.unload()
    esp = nil
-   m_enabled = nil
    font = nil
    mrad = nil
    mcos = nil
@@ -156,9 +154,27 @@ function esp.unload()
 end
 
 local function CMD_ToggleESP()
-   m_enabled = not m_enabled
-   printc(150, 150, 255, 255, "ESP is now " .. (m_enabled and "enabled" or "disabled"))
+   settings.enabled = not settings.enabled
+   printc(150, 150, 255, 255, "ESP is now " .. (settings.enabled and "enabled" or "disabled"))
+end
+
+local function CMD_ToggleVisibleOnly()
+   settings.visible_only = not settings.visible_only
+   printc(150, 150, 255, 255, "ESP visible only is " .. (settings.visible_only and "enabled" or "disabled"))
+end
+
+local function CMD_ToggleEnemyOnly()
+   settings.enemy_only = not settings.enemy_only
+   printc(150, 150, 255, 255, "ESP enemy only is " .. (settings.enemy_only and "enabled" or "disabled"))
+end
+
+local function CMD_ToggleHideCloaked()
+   settings.hide_cloaked = not settings.hide_cloaked
+   printc(150, 150, 255, 255, "ESP cloaked spy is " .. (settings.hide_cloaked and "enabled" or "disabled"))
 end
 
 GB_GLOBALS.RegisterCommand("esp->toggle", "Toggles esp", 0, CMD_ToggleESP)
+GB_GLOBALS.RegisterCommand("esp->toggle->enemy", "Makes esp only run on enemies or everyoe", 0, CMD_ToggleEnemyOnly)
+GB_GLOBALS.RegisterCommand("esp->toggle->cloaked", "Makes esp not run on cloaked spies or not", 0, CMD_ToggleHideCloaked)
+GB_GLOBALS.RegisterCommand("esp->toggle->visible", "Makes esp only run on visible players or everyone", 0, CMD_ToggleVisibleOnly)
 return esp

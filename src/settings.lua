@@ -62,6 +62,7 @@ GB_SETTINGS = {
 	},
 
 	esp = {
+		enabled = true,
 		hide_cloaked = true,
 		enemy_only = true,
 		visible_only = true,
