@@ -20,6 +20,8 @@ GB_GLOBALS = {
 	aimbot_modes = {plain = "plain", smooth = "smooth", silent = "silent", assistance = "assistance"},
 
 	flVisibleFraction = 0.4,
+
+	bIsPreRelease = true,
 }
 
 local sqrt, atan = math.sqrt, math.atan

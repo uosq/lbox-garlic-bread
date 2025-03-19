@@ -4,6 +4,8 @@
 
 ---
 
+Special thanks to Glitch :)
+
 #### Build instructions
 
 You shouldn't need to build the script manually, see $\textcolor{green}{\textsf{Releases}}$ page to find a file that works right
@@ -28,4 +30,3 @@ The file is exported to $\color{maroon}{\textsf{build/garlic-bread.lua}}$
 - GUI
 - Stop using console commands to configure the cheat (its ugly)
 - More...
-

@@ -10,6 +10,7 @@ require("src.bitbuf")
 --- make them run before tickshift so we dont return before it
 require("src.anticheat")
 
+local watermark = require("src.watermark")
 local gui = require("src.gui")
 local hud = require("src.hud")
 local spoof = require("src.spoof_convars")
@@ -49,6 +50,7 @@ callbacks.Register("Draw", "DRAW garlic bread", function()
 	antiaim.Draw()
 	spectators.Draw()
 	hud.Draw()
+	watermark.Draw()
 end)
 
 ---@param setup ViewSetup
@@ -80,6 +82,8 @@ end)
 
 ---@param usercmd UserCmd
 callbacks.Register("CreateMove", "CM garlic bread", function(usercmd)
+	if engine:IsChatOpen() then return end
+
 	fakelag.CreateMove(usercmd)
 	triggerbot.CreateMove(usercmd)
 	aimbot.CreateMove(usercmd)
@@ -115,6 +119,7 @@ callbacks.Register("Unload", "UL garlic bread unload", function()
 	hud.unload()
 	spoof.unload()
 	mats.unload()
+	watermark.unload()
 	GB_GLOBALS = nil
 	collectgarbage("collect")
 end)

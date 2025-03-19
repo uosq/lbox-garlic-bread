@@ -18,6 +18,7 @@ GB_SETTINGS = {
 		--- should aimbot run when using one of them?
 		hitscan = true,
 		projectile = true,
+		melee = true,
 
 		ignore = {
 			cloaked = true,
@@ -39,14 +40,25 @@ GB_SETTINGS = {
 
 	triggerbot = {
 		enabled = true,
-		key = E_ButtonCode.KEY_LSHIFT, --- no key means it will run in the background
+		key = nil, --- no key means it will run in the background
 		fov = 4.5,
 		filter = {
 			hitscan = false,
 			autobackstab = true,
 			autowrench = true,
-			melee = true,
-		}
+
+			--- dont enable this please
+			--- its not tested
+			autosticky = true,
+
+			melee = false,
+		},
+
+		options = {
+			sticky_distance = 146,
+			sticky_detonate_time = 0.8,
+			sticky_ignore_cloaked_spies = true,
+		},
 	},
 
 	esp = {
@@ -146,6 +158,10 @@ GB_SETTINGS = {
 	spectatorlist = {
 		enabled = true,
 		starty = 0.3, -- (percentage from center screen height)
+	},
+
+	watermark = {
+		enabled = true,
 	},
 }
 

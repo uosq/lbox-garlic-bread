@@ -85,36 +85,22 @@ end
 --- Only run this in CreateMove, after localplayer and weapon are valid!
 ---@param usercmd UserCmd
 local function RunMelee(usercmd)
-	if weapon and weapon:IsMeleeWeapon() and gb_settings.aimbot.autobackstab then
+	if not weapon then return end
+	if weapon:IsMeleeWeapon() then
 		local swing_trace = weapon:DoSwingTrace()
 
 		if swing_trace and swing_trace.entity and swing_trace.fraction >= gb.flVisibleFraction then
 			local entity = swing_trace.entity
 			local entity_team = entity:GetTeamNumber()
 			local index = entity:GetIndex()
-			if
-				gb_settings.aimbot.aim_friendly_buildings
-				and BUILDINGS[entity:GetClass()]
-				and localplayer
-				and localplayer:GetPropInt("m_PlayerClass", "m_iClass") == ENGINEER_CLASS
-				and (
-					(entity:GetHealth() >= 1 and entity:GetHealth() < entity:GetMaxHealth())
-					or (entity:GetPropInt("m_iUpgradeLevel") < MAX_UPGRADE_LEVEL)
-				)
-			then
-				MakeWeaponShoot(usercmd, index)
-				return true
-			end
 
 			if entity_team ~= m_team and entity:IsAlive() then
-				if weapon and weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_KNIFE and gb_settings.aimbot.autobackstab then
-					if bReadyToBackstab then
-						MakeWeaponShoot(usercmd, index)
-					else
-						gb.nAimbotTarget = index
-						gb.bIsAimbotShooting = false
-						return
-					end
+				if weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_KNIFE then
+					return
+				end
+
+				if gb_settings.aimbot.ignore.cloaked and entity:InCond(E_TFCOND.TFCond_Cloaked) then
+					return
 				end
 
 				MakeWeaponShoot(usercmd, index)
@@ -155,8 +141,7 @@ local function CreateMove(usercmd)
 	if not input.IsButtonDown(gb_settings.aimbot.key) then return end
 	if engine.IsChatOpen() or engine.Con_IsVisible() or engine.IsGameUIVisible() then return end
 
-	--- if it returns true, it means it was a melee weapon and we hope triggerbot is enabled
-	if weapon:IsMeleeWeapon() then return end
+	if weapon:IsMeleeWeapon() then RunMelee(usercmd) return end
 
 	if (weapon:GetPropInt("LocalWeaponData", "m_iClip1") == 0) then return end
 
