@@ -90,7 +90,7 @@ callbacks.Register("CreateMove", "CM garlic bread", function(usercmd)
 	tickshift.CreateMove(usercmd)
 	antiaim.CreateMove(usercmd)
 	movement.CreateMove(usercmd)
-	chams.CreateMove(usercmd)
+	chams.CreateMove()
 	binds.CreateMove(usercmd)
 end)
 
