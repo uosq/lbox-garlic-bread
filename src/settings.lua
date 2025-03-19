@@ -173,8 +173,8 @@ local function CMD_SaveSettings(args, num_args)
 	if not filename then return end
 
 	local encoded = json.encode(GB_SETTINGS)
-	io.output("Garlic Bread/Configs/"..filename)
-	io:write(encoded)
+	io.output("Garlic Bread/Configs/"..filename..".json")
+	io.write(encoded)
 	io.flush()
 	io.close()
 end
@@ -185,10 +185,15 @@ local function CMD_LoadSettings(args, num_args)
 	local filename = tostring(args[1])
 	if not filename then return end
 
-	local file = io.open("Garlic Bread/Configs/"..filename)
+	local file = io.open("Garlic Bread/Configs/"..filename..".json")
 	if file then
 		local content = file:read("a")
 		local decoded = json.decode(content)
+
+		for k, v in pairs(decoded) do
+			GB_SETTINGS[k] = v
+		end
+
 		GB_SETTINGS = decoded
 		file:close()
 	end
@@ -196,7 +201,8 @@ end
 
 local function CMD_GetAllSettingsFiles()
 	filesystem.EnumerateDirectory("Garlic Bread/Configs/*.json", function (filename, attributes)
-		print(filename:gsub(".json", ""))
+		local name = filename:gsub(".json", "")
+		print(name)
 	end)
 end
 
