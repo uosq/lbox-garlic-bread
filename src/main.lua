@@ -44,6 +44,9 @@ end
 callbacks.Register("SendNetMsg", "NETMSG garlic bread", SendNetMsg)
 
 callbacks.Register("Draw", "DRAW garlic bread", function()
+	if engine:Con_IsVisible() or engine:IsGameUIVisible() then return end
+	if engine:IsTakingScreenshot() then return end
+
 	esp.Draw()
 	aimbot.Draw()
 	tickshift.Draw()
@@ -55,6 +58,7 @@ end)
 
 ---@param setup ViewSetup
 callbacks.Register("RenderView", "RV garlic bread", function(setup)
+	if engine:IsTakingScreenshot() then return end
 	visuals.RenderView(setup)
 end)
 
@@ -67,11 +71,13 @@ end)
 
 ---@param context DrawModelContext
 callbacks.Register("DrawModel", "DME garlic bread", function(context)
+	if engine:IsTakingScreenshot() then return end
 	fakelag.DrawModel(context)
 	chams.DrawModel(context)
 end)
 
 callbacks.Register("DrawStaticProps", "DSP garlic bread", function(info)
+	if engine:IsTakingScreenshot() then return end
 	mats.DrawStaticProps(info)
 end)
 
