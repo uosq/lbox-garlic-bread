@@ -94,28 +94,29 @@ local function update_entities()
 	for _, entity in pairs(Dispensers) do
 		if not settings.filter.dispensers then break end
 		if entity:IsDormant() then goto continue end
+		if entity:GetHealth() <= 0 then goto continue end
+		if settings.enemy_only and entity:GetTeamNumber() == player.team then goto continue end
 
-		if entity:GetHealth() > 1 then
-			if settings.enemy_only and entity:GetTeamNumber() == player.team then goto continue end
-			new_entitylist[entity:GetIndex()] = colors.get_entity_color(entity)
-		end
+		new_entitylist[entity:GetIndex()] = colors.get_entity_color(entity)
 		::continue::
 	end
 
 	for _, entity in pairs(Teleporters) do
 		if not settings.filter.teleporters then break end
 		if entity:IsDormant() then goto continue end
+		if settings.enemy_only and entity:GetTeamNumber() == player.team then goto continue end
+		if entity:GetHealth() <= 0 then goto continue end
 
-		if entity:GetHealth() > 1 then
-			if settings.enemy_only and entity:GetTeamNumber() == player.team then goto continue end
-			new_entitylist[entity:GetIndex()] = colors.get_entity_color(entity)
-		end
+		new_entitylist[entity:GetIndex()] = colors.get_entity_color(entity)
 		::continue::
 	end
 
 	for _, entity in pairs(entities.FindByClass("CTFRagdoll")) do
 		if not settings.filter.ragdolls then break end
 		if entity:IsDormant() then goto continue end
+		if entity:GetHealth() <= 0 then goto continue end
+		if settings.enemy_only and entity:GetTeamNumber() == player.team then goto continue end
+
 		new_entitylist[entity:GetIndex()] = colors.get_entity_color(entity)
 		::continue::
 	end
