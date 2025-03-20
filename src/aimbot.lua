@@ -139,8 +139,12 @@ local function CreateMove(usercmd)
 	if not weapon then return end
 
 	if not input.IsButtonDown(gb_settings.aimbot.key) then return end
-	if engine.IsChatOpen() or engine.Con_IsVisible() or engine.IsGameUIVisible() then return end
+	if engine.IsChatOpen() then return end
 
+	if (gb_settings.aimbot.auto_spinup and weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_MINIGUN) then
+		usercmd.buttons = usercmd.buttons | IN_ATTACK2
+	end
+	
 	if weapon:IsMeleeWeapon() then RunMelee(usercmd) return end
 
 	if (weapon:GetPropInt("LocalWeaponData", "m_iClip1") == 0) then return end
@@ -277,13 +281,21 @@ local function CreateMove(usercmd)
 
 	if best_angle and target then
 		local viewangle = engine:GetViewAngles()
-		local smoothed = viewangle + vecMultiply(best_angle, (m_SmoothValue * 0.01 --[[/100]]))
+
+		local smoothval = vecMultiply(best_angle, (m_SmoothValue * 0.01 --[[/100]]))
+
+		if gb_settings.aimbot.humanized_smooth then
+			smoothval.x = smoothval.x * engine.RandomFloat(0.5, 5)
+			smoothval.y = smoothval.y * engine.RandomFloat(0.5, 5)
+		end
+
+		local smoothed = viewangle + smoothval
 		local angle = viewangle + best_angle
 		local distance = math.sqrt(best_angle.x^2 + best_angle.y^2)
 
 		if can_shoot then
 			if m_AimbotMode == gb.aimbot_modes.smooth or m_AimbotMode == gb.aimbot_modes.assistance then
-				if distance <= 2 then
+				if distance <= 1 then
 					--usercmd.buttons = usercmd.buttons | IN_ATTACK
 					MakeWeaponShoot(usercmd, target)
 				end
@@ -307,10 +319,16 @@ local function CreateMove(usercmd)
 		elseif m_AimbotMode == gb.aimbot_modes.silent and can_shoot and bIsShooting then
 			usercmd.viewangles = usercmd.viewangles + best_angle
 		end
-	end
 
-	if (gb_settings.aimbot.auto_spinup and weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_MINIGUN) then
-		usercmd.buttons = usercmd.buttons | IN_ATTACK2
+		--- im not gonna do individually all of them
+		--- even if inlining is probably better
+		if m_AimbotMode == gb.aimbot_modes.smooth then
+			usercmd.mousedx = math.floor(smoothval.x)
+			usercmd.mousedy = math.floor(smoothval.y)
+		else
+			usercmd.mousedx = math.floor(angle.x)
+			usercmd.mousedy = math.floor(angle.y)
+		end
 	end
 end
 
@@ -380,10 +398,6 @@ local function cmd_ChangeAimSmoothness(args, num_args)
 	gb_settings.aimbot.smooth_value = new_value
 end
 
-local function cmd_ToggleEpicStacBypass()
-	gb_settings.aimbot.epicstacbypass = not gb_settings.aimbot.epicstacbypass
-end
-
 gb.RegisterCommand("aimbot->change->mode", "Change aimbot mode | args: mode (plain, smooth or silent)", 1, cmd_ChangeAimbotMode)
 gb.RegisterCommand("aimbot->change->key", "Changes aimbot key | args: key (w, f, g, ...)", 1, cmd_ChangeAimbotKey)
 gb.RegisterCommand("aimbot->change->fov", "Changes aimbot fov | args: fov (number)", 1, cmd_ChangeAimbotFov)
@@ -391,7 +405,6 @@ gb.RegisterCommand("aimbot->ignore->toggle", "Toggles a aimbot ignore option (li
 gb.RegisterCommand("aimbot->toggle->aimlock", "Makes the aimbot not stop looking at the targe when shooting", 0, cmd_ToggleAimLock)
 gb.RegisterCommand("aimbot->toggle->fovindicator", "Toggles aim fov circle", 0, cmd_ToggleAimFov)
 gb.RegisterCommand("aimbot->change->smoothness", "Changes the smoothness value | args: new value (number, 0 to 1)", 1, cmd_ChangeAimSmoothness)
-gb.RegisterCommand("aimbot->toggle->stacbypass", "Toggles the **epic** stac bypass", 0, cmd_ToggleEpicStacBypass)
 
 local aimbot = {}
 aimbot.CreateMove = CreateMove

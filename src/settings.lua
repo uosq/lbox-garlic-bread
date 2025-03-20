@@ -10,10 +10,10 @@ GB_SETTINGS = {
 		autoshoot = true,
 		mode = aimbot_mode.silent,
 		lock_aim = false,
-		smooth_value = 10, --- lower value, smoother aimbot (10 = very smooth, 100 = basically plain aimbot)
+		smooth_value = 1, --- lower value, smoother aimbot (10 = very smooth, 100 = basically plain aimbot)
 		auto_spinup = true,
 		aimfov = false,
-		epicstacbypass = true,
+		humanized_smooth = true,
 
 		--- should aimbot run when using one of them?
 		hitscan = true,
