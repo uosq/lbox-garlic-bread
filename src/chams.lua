@@ -185,8 +185,6 @@ function chams.DrawModel(dme)
 
 	--- viewmodel weapon
 	if entity == nil and string.find(dme:GetModelName(), viewmodel_weapon_modelname) then
-		local viewmodel = entities.GetByIndex(player.viewmodel_index)
-		if not viewmodel or not viewmodel:ShouldDraw() then return end
 		local r, g, b, a = get_color(colors.VIEWMODEL_WEAPON)
 		dme:SetColorModulation(r, g, b)
 		dme:SetAlphaModulation(a)
@@ -198,6 +196,17 @@ function chams.DrawModel(dme)
 		dme:DepthRange(0, 1)
 		DEPTHOVERRIDE(false)
 		return
+	elseif entity and entity:GetClass() == "CTFViewModel" then
+		local r, g, b, a = get_color(colors.VIEWMODEL_ARM)
+		dme:SetColorModulation(r, g, b)
+		dme:SetAlphaModulation(a)
+		dme:ForcedMaterialOverride(material)
+
+		DEPTHOVERRIDE(true)
+		dme:DepthRange(0, 0.1)
+		dme:Execute()
+		dme:DepthRange(0, 1)
+		DEPTHOVERRIDE(false)
 	end
 
 	if not entity then return end
@@ -228,12 +237,12 @@ function chams.DrawModel(dme)
 	dme:ForcedMaterialOverride(material)
 
 	if not settings.visible_only then
-		dme:DepthRange(0, ((class == entity_classes.viewmodel_arm) and 0.1 or 0.2))
+		dme:DepthRange(0, 0.2)
 	end
 
 	dme:Execute()
-	DEPTHOVERRIDE(false)
 	dme:DepthRange(0, 1)
+	DEPTHOVERRIDE(false)
 end
 
 function chams.unload()
