@@ -89,6 +89,7 @@ end)
 ---@param usercmd UserCmd
 callbacks.Register("CreateMove", "CM garlic bread", function(usercmd)
 	if engine:IsChatOpen() then return end
+	if engine:Con_IsVisible() or engine:IsGameUIVisible() then return end
 
 	fakelag.CreateMove(usercmd)
 	triggerbot.CreateMove(usercmd)
