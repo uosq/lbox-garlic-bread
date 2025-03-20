@@ -67,7 +67,7 @@ function fakelag.CreateMove(usercmd)
 		end
 	end
 
-	if settings.indicator.enabled and (gb.bThirdperson or settings.indicator.firstperson) then
+	if settings.indicator.enabled and (gb_settings.visuals.thirdperson.enabled or settings.indicator.firstperson) then
 		local localplayer = entities:GetLocalPlayer()
 		if not localplayer then return end
 

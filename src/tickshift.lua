@@ -3,6 +3,8 @@ local gb_settings = GB_SETTINGS
 assert(gb, "tickshift: GB_GLOBALS is nil!")
 assert(gb_settings, "tickshift: GB_SETTINGS is nil!")
 
+local settings = gb_settings.tickshift
+
 local SIGNONSTATE_TYPE = 6
 local CLC_MOVE_TYPE = 9
 
@@ -230,9 +232,7 @@ function tickshift.Draw()
 		engine:Con_IsVisible()
 		or engine:IsGameUIVisible()
 		or (engine:IsTakingScreenshot() and gui.GetValue("clean screenshots") == 1)
-		or not m_enabled
-		or gb.bIsStacRunning
-		or gb.bFakeLagEnabled
+		or not m_enabled or gb.bIsStacRunning or gb.bFakeLagEnabled
 	then
 		return
 	end
@@ -261,6 +261,9 @@ function tickshift.Draw()
 	local color = m_bIsRED and colors.WARP_BAR_RED or colors.WARP_BAR_BLU
 	draw.Color(table.unpack(color))
 
+	--- i honestly dont know why this errors sometimes
+	--- so this was my solution
+	--- (not ideal)
 	pcall(
 		draw.FilledRect,
 		math.floor(barX or 0),

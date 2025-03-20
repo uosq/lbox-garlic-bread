@@ -103,7 +103,7 @@ function esp.Draw()
 
    for _, player in pairs (Players) do
       if player and player:IsValid() and player:IsAlive() and not player:IsDormant()
-      and (localindex ~= player:GetIndex() or GB_GLOBALS.bThirdperson) then
+      and (localindex ~= player:GetIndex() or GB_SETTINGS.visuals.thirdperson.enabled) then
 
          --- i dont like goto but nothing i can do here :/
          if settings.enemy_only and player:GetTeamNumber() == team then goto continue end

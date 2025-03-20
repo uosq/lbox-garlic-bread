@@ -4,6 +4,7 @@ assert(gb, "visuals: GB_GLOBALS is nil!")
 assert(gb_settings, "visuals: GB_SETTINGS is nil!")
 
 local visuals = {}
+local settings = gb_settings.visuals
 
 local function calc_fov(fov, aspect_ratio)
 	local halfanglerad = fov * (0.5 * math.pi / 180)
@@ -18,19 +19,19 @@ local function RenderView(setup)
 	if (not player) or not player:IsAlive() then return end
 
 	gb.nPreAspectRatio = setup.aspectRatio
-	setup.aspectRatio = gb.nAspectRatio == 0 and setup.aspectRatio or gb.nAspectRatio
+	setup.aspectRatio = settings.aspect_ratio == 0 and setup.aspectRatio or settings.aspect_ratio
 
-	local fov = player:InCond(E_TFCOND.TFCond_Zoomed) and 20 or gb.flCustomFOV
+	local fov = player:InCond(E_TFCOND.TFCond_Zoomed) and 20 or settings.custom_fov
 	if fov then
 		setup.fov = calc_fov(fov, setup.aspectRatio)
 	end
 
-	if gb.bNoRecoil and player:GetPropInt("m_nForceTauntCam") == 0 then
+	if settings.norecoil and player:GetPropInt("m_nForceTauntCam") == 0 then
 		local punchangle = player:GetPropVector("m_vecPunchAngle")
 		setup.angles = EulerAngles((setup.angles - punchangle):Unpack())
 	end
 
-	if gb_settings.visuals.thirdperson.enabled then
+	if settings.thirdperson.enabled then
 		local viewangles = engine:GetViewAngles()
 		local forward, right, up = viewangles:Forward(), viewangles:Right(), viewangles:Up()
 		setup.origin = setup.origin + (right * gb_settings.visuals.thirdperson.offset.right)
@@ -44,18 +45,17 @@ local function FrameStageNotify(stage)
 	if (not player) then return end
 	if (stage == E_ClientFrameStage.FRAME_NET_UPDATE_START) then
 		player:SetPropBool(gb_settings.visuals.thirdperson.enabled, "m_nForceTauntCam")
-		gb.bThirdperson = gb_settings.visuals.thirdperson.enabled
 	end
 end
 
 local function cmd_ChangeFOV(args)
 	if (not args or #args == 0 or not args[1]) then return end
-	gb.flCustomFOV = tonumber(args[1])
+	settings.custom_fov = tonumber(args[1])
 end
 
 local function cmd_ToggleThirdPerson()
 	gb_settings.visuals.thirdperson.enabled = not gb_settings.visuals.thirdperson.enabled
-	printc(150, 255, 150, 255, "Thirdperson is now " .. (gb_settings.visuals.thirdperson.enabled and "enabled" or "disabled"))
+	printc(150, 255, 150, 255, "Thirdperson is " .. (gb_settings.visuals.thirdperson.enabled and "enabled" or "disabled"))
 end
 
 local function cmd_SetThirdPersonOption(args, num_args)
@@ -70,9 +70,14 @@ local function cmd_SetAspectRatio(args, num_args)
 	if not args or #args ~= num_args then return end
 	local newvalue = tonumber(args[1])
 	if newvalue then
-		gb.nAspectRatio = newvalue
+		settings.aspect_ratio = newvalue
 		printc(150, 150, 255, 255, "Changed aspect ratio")
 	end
+end
+
+local function cmd_ToggleNoRecoil()
+	settings.norecoil = not settings.norecoil
+	printc(150, 150, 255, 255, "No recoil is " .. (settings.norecoil and "enabled" or "disabled"))
 end
 
 function visuals.unload()
@@ -83,6 +88,7 @@ gb.RegisterCommand("visuals->fov->set", "Changes fov | args: new fov (number)", 
 gb.RegisterCommand("visuals->thirdperson->toggle", "Toggles third person", 0, cmd_ToggleThirdPerson)
 gb.RegisterCommand("visuals->thirdperson->set", "Sets the thirdperson option | args: option name (up, right, forward), new value (number)", 2, cmd_SetThirdPersonOption)
 gb.RegisterCommand("visuals->aspectratio->set", "Changes the aspect ratio | args: new value (number)", 1, cmd_SetAspectRatio)
+gb.RegisterCommand("visuals->norecoil->toggle", "Toggles no recoil", 0, cmd_ToggleNoRecoil)
 
 visuals.RenderView = RenderView
 visuals.FrameStageNotify = FrameStageNotify

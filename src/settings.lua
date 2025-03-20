@@ -118,6 +118,8 @@ GB_SETTINGS = {
 
 	visuals = {
 		custom_fov = 90,
+		aspect_ratio = 0,
+		norecoil = true,
 		thirdperson = {
 			enabled = false,
 			offset = {up = 0, right = 0, forward = 0},
@@ -134,6 +136,7 @@ GB_SETTINGS = {
 			recharge_key = E_ButtonCode.MOUSE_4,
 			while_shooting = false,
 			standing_still = false,
+			bar_style = "new", --- replace this with "old" for old lbox-like style
 
 			recharge = {
 				while_shooting = false,
