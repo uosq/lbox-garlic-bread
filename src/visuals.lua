@@ -15,7 +15,7 @@ end
 ---@param setup ViewSetup
 local function RenderView(setup)
 	local player = entities:GetLocalPlayer()
-	if (not player) then return end
+	if (not player) or not player:IsAlive() then return end
 
 	gb.nPreAspectRatio = setup.aspectRatio
 	setup.aspectRatio = gb.nAspectRatio == 0 and setup.aspectRatio or gb.nAspectRatio

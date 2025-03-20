@@ -285,8 +285,11 @@ local function CreateMove(usercmd)
 		local smoothval = vecMultiply(best_angle, (m_SmoothValue * 0.01 --[[/100]]))
 
 		if gb_settings.aimbot.humanized_smooth then
-			smoothval.x = smoothval.x * engine.RandomFloat(0.5, 5)
-			smoothval.y = smoothval.y * engine.RandomFloat(0.5, 5)
+			--smoothval = vecMultiply(smoothval, engine.RandomFloat(0.8, 6))
+			--- i cant decide which one i like more lol
+			--- but multiplying the entire vector seems to be smoother
+			smoothval.x = smoothval.x * engine.RandomFloat(0.8, 6)
+			smoothval.y = smoothval.y * engine.RandomFloat(0.8, 6)
 		end
 
 		local smoothed = viewangle + smoothval

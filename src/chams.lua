@@ -179,6 +179,7 @@ end
 ---@param dme DrawModelContext
 function chams.DrawModel(dme)
 	if not settings.enabled then return end
+	if player.alive == 0 then return end
 
 	local material = chams_materials[materialmode]
 	local entity = dme:GetEntity()
