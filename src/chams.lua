@@ -207,6 +207,7 @@ function chams.DrawModel(dme)
 		dme:Execute()
 		dme:DepthRange(0, 1)
 		DEPTHOVERRIDE(false)
+		return
 	end
 
 	if not entity then return end
