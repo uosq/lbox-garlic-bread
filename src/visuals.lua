@@ -7,7 +7,7 @@ local norecoil = require("src.visuals.norecoil")
 local thirdperson = require("src.visuals.thirdperson")
 
 ---@param setup ViewSetup
-local function RenderView(setup)
+function visuals.RenderView(setup)
 	local player = entities:GetLocalPlayer()
 	if (not player) or not player:IsAlive() then return end
 
@@ -19,7 +19,7 @@ local function RenderView(setup)
 	thirdperson:RenderView(setup)
 end
 
-local function FrameStageNotify(stage)
+function visuals.FrameStageNotify(stage)
 	thirdperson:FrameStageNotify(stage)
 end
 
@@ -31,6 +31,4 @@ function visuals.unload()
 	thirdperson = nil
 end
 
-visuals.RenderView = RenderView
-visuals.FrameStageNotify = FrameStageNotify
 return visuals

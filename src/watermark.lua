@@ -31,6 +31,7 @@ h = math.floor(h) + padding
 function watermark.Draw()
    if not settings.enabled then return end
    if engine:IsGameUIVisible() or engine:Con_IsVisible() then return end
+   if engine:IsTakingScreenshot() then return end
 
    --- outline
    local color = GB_GLOBALS.bIsStacRunning and stac_detected or no_stac

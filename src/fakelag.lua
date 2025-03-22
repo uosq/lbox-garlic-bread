@@ -52,7 +52,7 @@ function fakelag.CreateMove(usercmd)
 		return
 	end
 
-	if m_nCurrentState == states.choking and not gb.bIsAimbotShooting and not gb.bIsStacRunning then
+	if m_nCurrentState == states.choking and not (usercmd.buttons & IN_ATTACK ~= 0 and gb.CanWeaponShoot()) and not gb.bIsStacRunning then
 		if GetChoked() < settings.ticks then
 			usercmd.sendpacket = usercmd.buttons & IN_ATTACK == 1
 		else

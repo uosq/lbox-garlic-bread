@@ -22,20 +22,24 @@ GB_GLOBALS = {
 local sqrt, atan = math.sqrt, math.atan
 local RADPI = 180/math.pi
 
-local lastFire = 0
+--[[local lastFire = 0
 local nextAttack = 0
-local old_weapon = nil
+local old_weapon = nil]]
 
-local function GetLastFireTime(weapon)
-	return weapon:GetPropFloat("LocalActiveTFWeaponData", "m_flLastFireTime")
+local function GetNextAttack(player)
+	return player:GetPropFloat("bcc_localdata", "m_flNextAttack")
 end
+
+--[[local function GetLastFireTime(weapon)
+	return weapon:GetPropFloat("LocalActiveTFWeaponData", "m_flLastFireTime")
+end]]
 
 local function GetNextPrimaryAttack(weapon)
 	return weapon:GetPropFloat("LocalActiveWeaponData", "m_flNextPrimaryAttack")
 end
 
 --- https://www.unknowncheats.me/forum/team-fortress-2-a/273821-canshoot-function.html
-function GB_GLOBALS.CanWeaponShoot()
+--[[function GB_GLOBALS.CanWeaponShoot()
 	local player = entities:GetLocalPlayer()
 	if not player then return false end
 
@@ -50,6 +54,19 @@ function GB_GLOBALS.CanWeaponShoot()
 	end
 	old_weapon = weapon
 	return nextAttack <= globals.CurTime()
+end]]
+
+--- not sure if we should use this or the above
+function GB_GLOBALS.CanWeaponShoot()
+	local player = entities:GetLocalPlayer()
+	if not player then return false end
+
+	local weapon = player:GetPropEntity("m_hActiveWeapon")
+	if not weapon or not weapon:IsValid() then return false end
+	if weapon:GetPropInt("LocalWeaponData", "m_iClip1") == 0 then return false end
+
+	local curtime = player:GetPropInt("m_nTickBase") * globals.TickInterval()
+	return curtime >= GetNextPrimaryAttack(weapon) and curtime >= GetNextAttack(player)
 end
 
 ---@param vec Vector3

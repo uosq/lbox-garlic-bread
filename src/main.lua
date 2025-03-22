@@ -88,14 +88,14 @@ callbacks.Register("CreateMove", "CM garlic bread", function(usercmd)
 	if engine:IsChatOpen() then return end
 	if engine:Con_IsVisible() or engine:IsGameUIVisible() then return end
 
-	fakelag.CreateMove(usercmd)
 	triggerbot.CreateMove(usercmd)
 	aimbot.CreateMove(usercmd)
+	fakelag.CreateMove(usercmd)
 	tickshift.CreateMove(usercmd)
 	antiaim.CreateMove(usercmd)
 	movement.CreateMove(usercmd)
-	chams.CreateMove()
 	binds.CreateMove(usercmd)
+	chams.CreateMove()
 end)
 
 callbacks.Register("Unload", "UL garlic bread unload", function()
