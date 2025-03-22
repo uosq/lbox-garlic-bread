@@ -12,8 +12,7 @@ local m_font = draw.CreateFont("TF2 BUILD", 12, 1000)
 function antiaim.CreateMove(usercmd)
 	if gb_settings.antiaim.enabled and not gb.bIsStacRunning
 	and not gb.bWarping and not gb.bRecharging
-	and not (usercmd.buttons & IN_ATTACK == 1)
-	and not gb.bIsAimbotShooting then
+	and not (usercmd.buttons & IN_ATTACK ~= 0 and gb.CanWeaponShoot()) then
 		--- make sure we aren't overchoking
 		if clientstate:GetChokedCommands() >= 21 then
 			usercmd.sendpacket = true
@@ -26,7 +25,7 @@ function antiaim.CreateMove(usercmd)
 		local fakeyaw = view.y + (gb_settings.antiaim.fake_yaw or 0)
 
 		local is_real_yaw_tick = usercmd.tick_count % 2 == 0
-		local yaw = is_real_yaw_tick and realyaw or fakeyaw
+		local yaw = is_real_yaw_tick and fakeyaw or realyaw
 
 		usercmd.viewangles = Vector3(view.x, yaw, 0)
 		usercmd.sendpacket = is_real_yaw_tick

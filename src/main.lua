@@ -52,11 +52,13 @@ callbacks.Register("Draw", "DRAW garlic bread", function()
 	antiaim.Draw()
 	spectators.Draw()
 	watermark.Draw()
+	visuals.Draw()
 end)
 
 ---@param setup ViewSetup
 callbacks.Register("RenderView", "RV garlic bread", function(setup)
 	if engine:IsTakingScreenshot() then return end
+	GB_GLOBALS.nPreAspectRatio = setup.aspectRatio
 	visuals.RenderView(setup)
 end)
 
@@ -81,6 +83,7 @@ end)
 ---@param event GameEvent
 callbacks.Register("FireGameEvent", "GE garlic bread", function(event)
 	binds.FireGameEvent(event)
+	visuals.FireGameEvent(event)
 end)
 
 ---@param usercmd UserCmd

@@ -123,6 +123,12 @@ GB_SETTINGS = {
 		thirdperson = {
 			enabled = false,
 			offset = {up = 0, right = 0, forward = 0},
+		},
+
+		see_hits = {
+			enabled = false,
+			non_crit_color = {255, 255, 255, 200},
+			crit_color = {255, 0, 0, 255},
 		}
 	},
 
