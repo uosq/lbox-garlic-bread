@@ -131,6 +131,7 @@ local function HitscanWeapon(usercmd, weapon)
    local target = trace.entity
    if not target or target:GetHealth() <= 0 then return false end
    if target:GetTeamNumber() == player.team then return false end
+   if target:InCond(E_TFCOND.TFCond_Cloaked) and gb_settings.aimbot.ignore.cloaked then return end
 
    local center = target:GetAbsOrigin() + ((target:GetMins() + target:GetMaxs()) * 0.5)
 
@@ -159,33 +160,25 @@ function triggerbot.CreateMove(usercmd)
 
    if settings.key and not input.IsButtonDown(settings.key) then return end
    if not player.alive then return end
-
-   AutoSticky(usercmd)
-
-   if not player.weapon.canshoot then return end
-
    local weapon = entities.GetByIndex(player.weapon.index)
    if not weapon then return end
 
-   if player.weapon.is_hitscan and settings.filter.hitscan and HitscanWeapon(usercmd, weapon) then
+   AutoSticky(usercmd)
+
+   if player.weapon.is_hitscan and settings.filter.hitscan then
+      HitscanWeapon(usercmd, weapon)
       return
-   end
 
-   local trace = weapon:DoSwingTrace()
-   if not trace then return end
-   if trace.fraction < gb.flVisibleFraction or not trace.entity:IsValid() or trace.entity:GetHealth() <= 0 then return end
+   elseif player.weapon.is_melee then
+      local trace = weapon:DoSwingTrace()
+      if not trace then return end
+      if trace.fraction < gb.flVisibleFraction or not trace.entity:IsValid() or trace.entity:GetHealth() <= 0 then return end
+      local target = trace.entity
 
-   local target = trace.entity
-   if target:InCond(E_TFCOND.TFCond_Cloaked) and gb_settings.aimbot.ignore.cloaked then return end
-
-   if player.weapon.is_melee then
       if target:GetTeamNumber() == player.team then
          AutoWrench(usercmd, target)
-      end
-
-      if target:GetTeamNumber() ~= player.team then
+      else
          AutoBackstab(usercmd)
-
          if not settings.filter.melee then return end
          gb.nAimbotTarget = target:GetIndex()
          gb.bIsAimbotShooting = true
@@ -194,7 +187,7 @@ function triggerbot.CreateMove(usercmd)
    end
 end
 
-function triggerbot.FrameSageNotify(stage)
+function triggerbot.FrameStageNotify(stage)
    if not (stage == E_ClientFrameStage.FRAME_NET_UPDATE_END) then return end
 
    local localplayer = entities:GetLocalPlayer()

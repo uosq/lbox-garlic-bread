@@ -60,11 +60,14 @@ end]]
 function GB_GLOBALS.CanWeaponShoot()
 	local player = entities:GetLocalPlayer()
 	if not player then return false end
+	if player:InCond(E_TFCOND.TFCond_Taunting) then return false end
 
 	local weapon = player:GetPropEntity("m_hActiveWeapon")
 	if not weapon or not weapon:IsValid() then return false end
 	if weapon:GetPropInt("LocalWeaponData", "m_iClip1") == 0 then return false end
 
+	--- globals.CurTime() is a little bit behind this one
+	--- making us not able to shoot consistently and breaking the pistols
 	local curtime = player:GetPropInt("m_nTickBase") * globals.TickInterval()
 	return curtime >= GetNextPrimaryAttack(weapon) and curtime >= GetNextAttack(player)
 end

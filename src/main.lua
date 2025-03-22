@@ -61,7 +61,7 @@ callbacks.Register("RenderView", "RV garlic bread", function(setup)
 end)
 
 callbacks.Register("FrameStageNotify", "FSN garlic bread", function(stage)
-	triggerbot.FrameSageNotify(stage)
+	triggerbot.FrameStageNotify(stage)
 	visuals.FrameStageNotify(stage)
 	spectators.FrameStageNotify(stage)
 end)
