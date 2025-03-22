@@ -18,7 +18,7 @@ function aimbot.CreateMove(usercmd)
 	local weapontype = weapon:GetWeaponProjectileType()
 
 	if weapontype == E_ProjectileType.TF_PROJECTILE_BULLET then
-		hitscan:CreateMove(usercmd)
+		hitscan:CreateMove(usercmd, player)
 	elseif weapon:IsMeleeWeapon() then
 		melee:CreateMove(usercmd, weapon, player:GetTeamNumber())
 	elseif weapontype ~= E_ProjectileType.TF_PROJECTILE_BULLET then

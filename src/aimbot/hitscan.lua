@@ -104,9 +104,7 @@ local function CheckPlayers(usercmd, shoot_pos, m_team, punchangles, should_aim_
 				aimtable.bestfov = fov
 				aimtable.bestangle = angle
 				aimtable.targetindex = entity:GetIndex() --- not saving the whole entity here, too much memory used!
-				return true
 			end
-			return false
 		end
 
 		if trace and trace.entity == entity and trace.fraction >= gb.flVisibleFraction then
@@ -136,7 +134,8 @@ local function CheckPlayers(usercmd, shoot_pos, m_team, punchangles, should_aim_
 end
 
 ---@param usercmd UserCmd
-function hitscan:CreateMove(usercmd)
+---@param plocal Entity
+function hitscan:CreateMove(usercmd, plocal)
    gb.bIsAimbotShooting = false
    gb.nAimbotTarget = nil
 
@@ -149,9 +148,6 @@ function hitscan:CreateMove(usercmd)
    if settings.key and not input.IsButtonDown(settings.key) then
 		return
 	end
-
-   local plocal = entities:GetLocalPlayer()
-   if not plocal or not plocal:IsAlive() then return end
 
    local team = plocal:GetTeamNumber()
    local weapon = plocal:GetPropEntity("m_hActiveWeapon")
@@ -169,7 +165,7 @@ function hitscan:CreateMove(usercmd)
    and gb.nPreAspectRatio
    or gb_settings.visuals.aspect_ratio)
 
-   local fov = plocal:InCond(E_TFCOND.TFCond_Zoomed) and 20 or gb_settings.visuals.aspect_ratio
+   local fov = plocal:InCond(E_TFCOND.TFCond_Zoomed) and 20 or gb_settings.visuals.custom_fov
    local viewfov = helpers:calc_fov(fov, aspectratio)
    local aimfov = settings.fov * (math.tan(math.rad(viewfov / 2)) / math.tan(rad45))
    local shootpos = helpers:GetShootPosition(plocal)
@@ -184,9 +180,7 @@ function hitscan:CreateMove(usercmd)
    CheckPlayers(usercmd, shootpos, team, punchangle, aim_at_head, aimtable)
    CheckClass(Sentries, shootpos, usercmd, punchangle, aimtable)
 
-   if not aimtable.bestangle
-   or not aimtable.targetindex
-   or not aimtable.bestfov then return end
+   if not aimtable.bestangle or not aimtable.bestfov or not aimtable.targetindex then return end
 
    local viewangle = usercmd.viewangles
    local smoothval = vector.Multiply(aimtable.bestangle, smoothvalue * 0.01)
@@ -216,11 +210,13 @@ function hitscan:CreateMove(usercmd)
       usercmd.viewangles = smoothed
 
    else --- not smooth or assistance
+      if not canshoot then return end
+
       if settings.autoshoot then
          helpers:MakeWeaponShoot(usercmd, aimtable.targetindex)
       end
 
-      if (usercmd.buttons & IN_ATTACK) ~= 0 and canshoot then
+      if (usercmd.buttons & IN_ATTACK) ~= 0 then
          usercmd.viewangles = directangle
 
          if aim_mode == gb.aimbot_modes.plain then
