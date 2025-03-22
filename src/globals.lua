@@ -66,6 +66,10 @@ function GB_GLOBALS.CanWeaponShoot()
 	if not weapon or not weapon:IsValid() then return false end
 	if weapon:GetPropInt("LocalWeaponData", "m_iClip1") == 0 then return false end
 
+	--- not a good solution but if it works it works
+	if weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_PISTOL_SCOUT
+	or weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_PISTOL then return true end
+
 	--- globals.CurTime() is a little bit behind this one
 	--- making us not able to shoot consistently and breaking the pistols
 	local curtime = player:GetPropInt("m_nTickBase") * globals.TickInterval()
