@@ -28,6 +28,7 @@ m_bIsRED = false
 local colors = require("src.colors")
 
 local tickshift = {}
+local old_tickbase = nil
 
 local function CanChoke()
 	return clientstate:GetChokedCommands() < max_ticks
@@ -119,6 +120,15 @@ local function HandleRecharge()
 	return false
 end
 
+local function FixTickBase()
+	local player = entities:GetLocalPlayer()
+	if player and old_tickbase then
+		player:SetPropInt(old_tickbase - charged_ticks, "m_nTickBase")
+		--- im not sure if this is good enough to fix tickbase
+		--- but spy's revolver seems to be missing less
+	end
+end
+
 --- Resets the variables to their default state when joining a new server
 ---@param msg NetMessage
 local function HandleJoinServers(msg)
@@ -156,8 +166,10 @@ function tickshift.SendNetMsg(msg, returnval)
 		if warping and not recharging then
 			gb.bWarping = true
 			HandleWarp(msg)
+			FixTickBase()
 		elseif HandleRecharge() then
 			gb.bRecharging = true
+			FixTickBase()
 			returnval.ret = false
 		end
 	end
@@ -215,11 +227,10 @@ function tickshift.CreateMove(usercmd)
 			dt_ticks = dt_ticks + 1
 			charged_ticks = charged_ticks - 1
 			usercmd.sendpacket = false
+			FixTickBase()
 		end
 
 		if clientstate:GetChokedCommands() >= gb_settings.tickshift.doubletap.ticks or dt_ticks >= max_ticks then
-			usercmd.command_number = 2147483647
-			usercmd.tick_count = 2147483647
 			usercmd.sendpacket = true
 			dt_ticks = 0
 			charged_ticks = 0
@@ -275,6 +286,14 @@ function tickshift.Draw()
 	draw.SetFont(font)
 	draw.Color(table.unpack(colors.WARP_BAR_TEXT))
 	draw.TextShadow(textX, textY, formatted_text)
+end
+
+function tickshift.FrameStageNotify(stage)
+	if stage == E_ClientFrameStage.FRAME_NET_UPDATE_START then
+		local player = entities:GetLocalPlayer()
+		if not player then return end
+		old_tickbase =  player:GetPropInt("m_nTickBase")
+	end
 end
 
 local function cmd_ToggleTickShift()

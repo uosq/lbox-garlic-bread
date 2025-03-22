@@ -66,6 +66,7 @@ callbacks.Register("FrameStageNotify", "FSN garlic bread", function(stage)
 	triggerbot.FrameStageNotify(stage)
 	visuals.FrameStageNotify(stage)
 	spectators.FrameStageNotify(stage)
+	tickshift.FrameStageNotify(stage)
 end)
 
 ---@param context DrawModelContext

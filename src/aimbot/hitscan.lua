@@ -139,7 +139,6 @@ function hitscan:CreateMove(usercmd, plocal)
    gb.bIsAimbotShooting = false
    gb.nAimbotTarget = nil
 
-   if not usercmd.sendpacket then return end
    if (gb.bSpectated and not settings.ignore.spectators)
    or not settings.enabled then
       return

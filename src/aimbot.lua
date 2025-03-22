@@ -99,11 +99,6 @@ local function cmd_ChangeAimbotIgnore(args)
 	printc(150, 255, 150, 255, "Aimbot is now " .. ignoring .. " " .. option)
 end
 
-local function cmd_ToggleAimLock()
-	gb_settings.aimbot.lock_aim = not gb_settings.aimbot.lock_aim
-	printc(150, 255, 150, 255, "Aim lock is now " .. (gb_settings.aimbot.lock_aim and "enabled" or "disabled"))
-end
-
 local function cmd_ToggleAimFov()
 	gb_settings.aimbot.aimfov = not gb_settings.aimbot.aimfov
 end
@@ -135,18 +130,13 @@ gb.RegisterCommand(
 	cmd_ChangeAimbotIgnore
 )
 gb.RegisterCommand(
-	"aimbot->toggle->aimlock",
-	"Makes the aimbot not stop looking at the targe when shooting",
-	0,
-	cmd_ToggleAimLock
-)
-gb.RegisterCommand("aimbot->toggle->fovindicator", "Toggles aim fov circle", 0, cmd_ToggleAimFov)
-gb.RegisterCommand(
 	"aimbot->change->smoothness",
 	"Changes the smoothness value | args: new value (number, 0 to 1)",
 	1,
 	cmd_ChangeAimSmoothness
 )
+
+gb.RegisterCommand("aimbot->toggle->fovindicator", "Toggles aim fov circle", 0, cmd_ToggleAimFov)
 
 local function unload()
 	aimbot = nil
