@@ -3,15 +3,13 @@ local gb_settings = GB_SETTINGS
 assert(gb, "aimbot: gb is nil!")
 assert(gb_settings, "aimbot: GB_SETTINGS is nil!")
 
-local bReadyToBackstab = false
-
 ---@type Entity?, Entity?, integer?
 local localplayer, weapon, m_team = nil, nil, nil
 
 local width, height = draw.GetScreenSize()
 
 --- TODO: rename later to CLASS_BONES
-local CLASS_HITBOXES = require("src.hitboxes")
+local CLASS_BONES = require("src.hitboxes")
 
 local HEADSHOT_WEAPONS_INDEXES = {
 	[230] = true, --- SYDNEY SLEEPER
@@ -19,20 +17,10 @@ local HEADSHOT_WEAPONS_INDEXES = {
 	[1006] = true, --- FESTIVE AMBASSADOR
 }
 
---- stuff used by melee aimbot
-local ENGINEER_CLASS = 9
-local MAX_UPGRADE_LEVEL = 3
-local BUILDINGS = {
-	CObjectSentrygun = true,
-	CObjectDispenser = true,
-	CObjectTeleporter = true,
-}
-
 --- Cache some important functions
 
 local TraceLine = engine.TraceLine
 local sqrt = math.sqrt
-local PI = math.pi
 local vecMultiply = vector.Multiply
 
 ---
@@ -52,8 +40,8 @@ local function ShouldAimAtHead()
 		local Head, Body = true, false
 
 		if
-			weapon_id == E_WeaponBaseID.TF_WEAPON_SNIPERRIFLE
-			or weapon_id == E_WeaponBaseID.TF_WEAPON_SNIPERRIFLE_DECAP
+			 weapon_id == E_WeaponBaseID.TF_WEAPON_SNIPERRIFLE
+			 or weapon_id == E_WeaponBaseID.TF_WEAPON_SNIPERRIFLE_DECAP
 		then
 			return localplayer:InCond(E_TFCOND.TFCond_Zoomed) and Head or Body
 		end
@@ -113,7 +101,7 @@ end
 
 local function calc_fov(fov, aspect_ratio)
 	local halfanglerad = fov * (0.5 * math.pi / 180)
-	local t = math.tan(halfanglerad) * (aspect_ratio / (4/3))
+	local t = math.tan(halfanglerad) * (aspect_ratio / (4 / 3))
 	local ret = (180 / math.pi) * math.atan(t)
 	return ret * 2
 end
@@ -144,8 +132,11 @@ local function CreateMove(usercmd)
 	if (gb_settings.aimbot.auto_spinup and weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_MINIGUN) then
 		usercmd.buttons = usercmd.buttons | IN_ATTACK2
 	end
-	
-	if weapon:IsMeleeWeapon() then RunMelee(usercmd) return end
+
+	if weapon:IsMeleeWeapon() then
+		RunMelee(usercmd)
+		return
+	end
 
 	if (weapon:GetPropInt("LocalWeaponData", "m_iClip1") == 0) then return end
 
@@ -153,7 +144,7 @@ local function CreateMove(usercmd)
 	local m_AimbotMode = gb.bIsStacRunning and gb.aimbot_modes.smooth or gb_settings.aimbot.mode
 	local m_SmoothValue = gb.bIsStacRunning and 20 or gb_settings.aimbot.smooth_value
 	local m_nAspectRatio = (gb.nAspectRatio == 0 and gb.nPreAspectRatio or gb.nAspectRatio)
-	local viewfov =  calc_fov(localplayer:InCond(E_TFCOND.TFCond_Zoomed) and 20 or gb.flCustomFOV, m_nAspectRatio)
+	local viewfov = calc_fov(localplayer:InCond(E_TFCOND.TFCond_Zoomed) and 20 or gb.flCustomFOV, m_nAspectRatio)
 	local m_Fov = gb_settings.aimbot.fov * (math.tan(math.rad(viewfov / 2)) / math.tan(math.rad(45)))
 
 	local shoot_pos = GetShootPosition()
@@ -219,10 +210,10 @@ local function CreateMove(usercmd)
 		if should_aim_at_head == nil then
 			goto continue
 		elseif should_aim_at_head == true then
-			best_bone_for_weapon = CLASS_HITBOXES[enemy_class][1]
+			best_bone_for_weapon = CLASS_BONES[enemy_class][1]
 		elseif should_aim_at_head == false then
-			best_bone_for_weapon = #CLASS_HITBOXES[enemy_class] == 6 and CLASS_HITBOXES[enemy_class][2]
-				or CLASS_HITBOXES[enemy_class][3] --- if size is 6 then we have no HeadUpper as the first value
+			best_bone_for_weapon = #CLASS_BONES[enemy_class] == 6 and CLASS_BONES[enemy_class][2]
+				 or CLASS_BONES[enemy_class][3] --- if size is 6 then we have no HeadUpper as the first value
 		end
 
 		local bones = entity:SetupBones()
@@ -250,7 +241,7 @@ local function CreateMove(usercmd)
 		if trace and trace.entity == entity and trace.fraction >= gb.flVisibleFraction then
 			do_aimbot_calc()
 		else
-			local BONES = CLASS_HITBOXES[enemy_class]
+			local BONES = CLASS_BONES[enemy_class]
 			for _, bone in ipairs(BONES) do
 				--- already tried the best one
 				if bone ~= best_bone_for_weapon then
@@ -277,7 +268,8 @@ local function CreateMove(usercmd)
 		CheckBuilding(Teleporters)
 	end
 
-	local can_shoot = gb.CanWeaponShoot() or gb_settings.aimbot.lock_aim -- if autoshoot is off and player is trying to shoot, we aim for them
+	local can_shoot = gb.CanWeaponShoot() or
+	gb_settings.aimbot.lock_aim                                        -- if autoshoot is off and player is trying to shoot, we aim for them
 
 	if best_angle and target then
 		local viewangle = engine:GetViewAngles()
@@ -294,7 +286,7 @@ local function CreateMove(usercmd)
 
 		local smoothed = viewangle + smoothval
 		local angle = viewangle + best_angle
-		local distance = math.sqrt(best_angle.x^2 + best_angle.y^2)
+		local distance = math.sqrt(best_angle.x ^ 2 + best_angle.y ^ 2)
 
 		if can_shoot then
 			if m_AimbotMode == gb.aimbot_modes.smooth or m_AimbotMode == gb.aimbot_modes.assistance then
@@ -345,9 +337,9 @@ local function Draw()
 		viewfov = calc_fov(viewfov, aspectratio)
 		local aimfov = gb_settings.aimbot.fov * (math.tan(math.rad(viewfov / 2)) / math.tan(math.rad(45)))
 		if (not aimfov or not viewfov) then return end --- wtf why is it a "number?"
-		local radius = (math.tan(math.rad(aimfov)/2))/(math.tan(math.rad(viewfov)/2)) * width
-		draw.Color(255,255,255,255)
-		draw.OutlinedCircle(math.floor(width/2), math.floor(height/2), math.floor(radius), 64)
+		local radius = (math.tan(math.rad(aimfov) / 2)) / (math.tan(math.rad(viewfov) / 2)) * width
+		draw.Color(255, 255, 255, 255)
+		draw.OutlinedCircle(math.floor(width / 2), math.floor(height / 2), math.floor(radius), 64)
 	end
 end
 
@@ -363,7 +355,10 @@ local function cmd_ChangeAimbotKey(args)
 	local key = string.upper(tostring(args[1]))
 
 	local selected_key = E_ButtonCode["KEY_" .. key]
-	if (not selected_key) then print("Invalid key!") return end
+	if (not selected_key) then
+		print("Invalid key!")
+		return
+	end
 
 	gb_settings.aimbot.key = selected_key
 end
@@ -397,17 +392,24 @@ end
 local function cmd_ChangeAimSmoothness(args, num_args)
 	if not args or #args ~= num_args then return end
 	local new_value = tonumber(args[1])
-	if not new_value then printc(255, 150, 150, 255, "Invalid value!") return end
+	if not new_value then
+		printc(255, 150, 150, 255, "Invalid value!")
+		return
+	end
 	gb_settings.aimbot.smooth_value = new_value
 end
 
-gb.RegisterCommand("aimbot->change->mode", "Change aimbot mode | args: mode (plain, smooth or silent)", 1, cmd_ChangeAimbotMode)
+gb.RegisterCommand("aimbot->change->mode", "Change aimbot mode | args: mode (plain, smooth or silent)", 1,
+	cmd_ChangeAimbotMode)
 gb.RegisterCommand("aimbot->change->key", "Changes aimbot key | args: key (w, f, g, ...)", 1, cmd_ChangeAimbotKey)
 gb.RegisterCommand("aimbot->change->fov", "Changes aimbot fov | args: fov (number)", 1, cmd_ChangeAimbotFov)
-gb.RegisterCommand("aimbot->ignore->toggle", "Toggles a aimbot ignore option (like ignore cloaked) | args: option name (string)", 1, cmd_ChangeAimbotIgnore)
-gb.RegisterCommand("aimbot->toggle->aimlock", "Makes the aimbot not stop looking at the targe when shooting", 0, cmd_ToggleAimLock)
+gb.RegisterCommand("aimbot->ignore->toggle",
+	"Toggles a aimbot ignore option (like ignore cloaked) | args: option name (string)", 1, cmd_ChangeAimbotIgnore)
+gb.RegisterCommand("aimbot->toggle->aimlock", "Makes the aimbot not stop looking at the targe when shooting", 0,
+	cmd_ToggleAimLock)
 gb.RegisterCommand("aimbot->toggle->fovindicator", "Toggles aim fov circle", 0, cmd_ToggleAimFov)
-gb.RegisterCommand("aimbot->change->smoothness", "Changes the smoothness value | args: new value (number, 0 to 1)", 1, cmd_ChangeAimSmoothness)
+gb.RegisterCommand("aimbot->change->smoothness", "Changes the smoothness value | args: new value (number, 0 to 1)", 1,
+	cmd_ChangeAimSmoothness)
 
 local aimbot = {}
 aimbot.CreateMove = CreateMove
@@ -416,7 +418,7 @@ aimbot.Draw = Draw
 local function unload()
 	localplayer, weapon, m_team = nil, nil, nil
 	width, height = nil, nil
-	CLASS_HITBOXES = nil
+	CLASS_BONES = nil
 	HEADSHOT_WEAPONS_INDEXES = nil
 	TraceLine = nil
 	sqrt = nil

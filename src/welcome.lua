@@ -3,4 +3,4 @@ local welcome_msg =
 I hope you have fun]]
 
 printc(150, 255, 150, 255, welcome_msg)
-printc(255, 255, 255, 255, "You can use 'gb help' command to print all the console commands :)")
+printc(255, 255, 255, 255, "You can use 'gb help' command to print all the console commands :)", "or use 'gb find' to find a command you want :)")

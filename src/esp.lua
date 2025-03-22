@@ -10,7 +10,7 @@ local mcos = math.cos
 local msin = math.sin
 local dline = draw.Line
 
-local utils = require("src.esputils")
+local utils = require("src.esp.utils")
 local colors = require("src.colors")
 
 local settings = GB_SETTINGS.esp
@@ -87,6 +87,7 @@ end
 function esp.Draw()
    if not settings.enabled then return end
    if engine:IsGameUIVisible() or engine:Con_IsVisible() then return end
+   if not Players or #Players == 0 then return end
 
    local localplayer = entities:GetLocalPlayer()
    if not localplayer then return end
@@ -100,6 +101,7 @@ function esp.Draw()
    local localindex = localplayer:GetIndex()
    local rightVector = Vector3(mcos(rightrad), msin(rightrad), 0)
    local leftVector = Vector3(mcos(leftrad), msin(leftrad), 0)
+
 
    for _, player in pairs (Players) do
       if player and player:IsValid() and player:IsAlive() and not player:IsDormant()

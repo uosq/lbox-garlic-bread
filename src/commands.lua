@@ -62,17 +62,30 @@ local function SendStringCmd(cmd)
 	end
 end
 
-local function print_help()
+local function print_help(args)
 	printc(255, 150, 150, 255, "Stac is " .. (GB_GLOBALS.bIsStacRunning and "detected" or "not running") .. " in this server")
 	printc(255, 255, 255, 255, "The commands are:")
-
 	for name, props in pairs (m_commands) do
 		local str = "%s : %s"
 		printc(200, 200, 200, 200, string.format(str, name, props.help))
 	end
 end
 
+local function find_cmd(args, num_args)
+	if not args or #args ~= num_args then return end
+	local pattern = tostring(args[1])
+
+	printc(255, 255, 0, 255, "commands found:")
+
+	for name, command in pairs (m_commands) do
+		if string.find(name, pattern) then
+			printc(0, 255, 255, 255, tostring(name))
+		end
+	end
+end
+
 RegisterCommand("help", "prints all command's description and usage", 0, print_help)
+RegisterCommand("find", "tries to find what you're looking for | args: command name or something it has", 1, find_cmd)
 
 GB_GLOBALS.RegisterCommand = RegisterCommand
 GB_GLOBALS.RunCommand = RunCommand
