@@ -5,7 +5,7 @@ local custom_aspectratio = require("src.visuals.custom aspectratio")
 local custom_fov = require("src.visuals.custom fov")
 local norecoil = require("src.visuals.norecoil")
 local thirdperson = require("src.visuals.thirdperson")
-local dmg_visualizer = require("src.visuals.dmg visualizer")
+local dmg_visualizer = require("src.visuals.hitmarker")
 
 ---@param setup ViewSetup
 function visuals.RenderView(setup)
