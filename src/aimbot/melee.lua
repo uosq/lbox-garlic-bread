@@ -8,6 +8,9 @@ local helpers = require("src.aimbot.helpers")
 ---@param usercmd UserCmd
 ---@param weapon Entity
 function melee:CreateMove(usercmd, weapon, m_team)
+	if not gb_settings.aimbot.melee then return end
+	if gb_settings.aimbot.key and not input.IsButtonDown(gb_settings.aimbot.key) then return end
+
 	local swing_trace = weapon:DoSwingTrace()
 	if swing_trace and swing_trace.entity and swing_trace.fraction >= gb.flVisibleFraction then
 		local entity = swing_trace.entity

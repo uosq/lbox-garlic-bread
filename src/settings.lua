@@ -12,7 +12,7 @@ GB_SETTINGS = {
 		lock_aim = false,
 		smooth_value = 1, --- lower value, smoother aimbot (10 = very smooth, 100 = basically plain aimbot)
 		auto_spinup = true,
-		aimfov = false,
+		fov_indicator = false,
 		humanized_smooth = true,
 
 		--- should aimbot run when using one of them?
@@ -46,11 +46,7 @@ GB_SETTINGS = {
 			hitscan = false,
 			autobackstab = true,
 			autowrench = true,
-
-			--- dont enable this please
-			--- its not tested
 			autosticky = true,
-
 			melee = false,
 		},
 
@@ -64,8 +60,17 @@ GB_SETTINGS = {
 	esp = {
 		enabled = true,
 		hide_cloaked = true,
-		enemy_only = true,
+		enemy_only = false,
 		visible_only = true,
+		outline = true,
+		fade = true,
+
+		filter = {
+			players = true,
+			localplayer = true,
+			sentries = true,
+			other_buildings = true
+		},
 	},
 
 	antiaim = {
@@ -81,7 +86,7 @@ GB_SETTINGS = {
 	},
 
 	chams = {
-		enabled = true,
+		enabled = false,
 		update_interval = 5, --- ticks
 		enemy_only = false,
 		visible_only = false,

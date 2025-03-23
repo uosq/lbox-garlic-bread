@@ -27,7 +27,7 @@ function aimbot.CreateMove(usercmd)
 end
 
 function aimbot.Draw()
-	if not gb_settings.aimbot.aimfov or not gb_settings.aimbot.enabled then
+	if not gb_settings.aimbot.fov_indicator or not gb_settings.aimbot.enabled then
 		return
 	end
 
@@ -100,7 +100,7 @@ local function cmd_ChangeAimbotIgnore(args)
 end
 
 local function cmd_ToggleAimFov()
-	gb_settings.aimbot.aimfov = not gb_settings.aimbot.aimfov
+	gb_settings.aimbot.fov_indicator = not gb_settings.aimbot.fov_indicator
 end
 
 local function cmd_ChangeAimSmoothness(args, num_args)
