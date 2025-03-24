@@ -8,12 +8,10 @@ function movement.unload()
 end
 
 ---@param usercmd UserCmd
-local function CreateMove(usercmd)
-	local localplayer = entities:GetLocalPlayer()
-	if (not localplayer or not localplayer:IsAlive()) then return end
-	local flags = localplayer:GetPropInt("m_fFlags")
+local function CreateMove(usercmd, player)
+	local flags = player:GetPropInt("m_fFlags")
 	local ground = (flags & FL_ONGROUND) ~= 0
-	local class = localplayer:GetPropInt("m_PlayerClass", "m_iClass")
+	local class = player:GetPropInt("m_PlayerClass", "m_iClass")
 	if not GB_GLOBALS.bIsStacRunning and gb_settings.misc.bhop and class ~= 1 then
 		local jump = (usercmd.buttons & IN_JUMP) ~= 0
 		if ground and jump then

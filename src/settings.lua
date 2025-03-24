@@ -61,7 +61,7 @@ GB_SETTINGS = {
 		enabled = true,
 		hide_cloaked = true,
 		enemy_only = false,
-		visible_only = true,
+		visible_only = false,
 		outline = true,
 		fade = true,
 

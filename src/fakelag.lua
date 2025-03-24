@@ -108,11 +108,12 @@ function fakelag.SendNetMsg(msg, returnval)
 end
 
 ---@param context DrawModelContext
-function fakelag.DrawModel(context)
+---@param entity Entity?
+---@param modelname string
+function fakelag.DrawModel(context, entity, modelname)
 	if not settings.enabled or not settings.indicator.enabled then return end
-	local entity = context:GetEntity()
 
-	if entity == nil and m_hIndicator and m_hIndicator:ShouldDraw() and context:GetModelName() == m_sModelName then
+	if entity == nil and m_hIndicator and m_hIndicator:ShouldDraw() and modelname == m_sModelName then
 		local color = colors.FAKELAG
 		local r, g, b, a = table.unpack(color)
 		context:SetAlphaModulation(a/255)

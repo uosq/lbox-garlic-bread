@@ -46,8 +46,8 @@ callbacks.Register("Draw", "DRAW garlic bread", function()
 	if engine:Con_IsVisible() or engine:IsGameUIVisible() then return end
 	if engine:IsTakingScreenshot() then return end
 
-	esp.Draw()
 	aimbot.Draw()
+	esp.Draw()
 	tickshift.Draw()
 	antiaim.Draw()
 	spectators.Draw()
@@ -72,8 +72,12 @@ end)
 ---@param context DrawModelContext
 callbacks.Register("DrawModel", "DME garlic bread", function(context)
 	if engine:IsTakingScreenshot() then return end
-	fakelag.DrawModel(context)
-	chams.DrawModel(context)
+
+	local entity = context:GetEntity()
+	local modelname = context:GetModelName()
+
+	fakelag.DrawModel(context, entity, modelname)
+	chams.DrawModel(context, entity, modelname)
 end)
 
 callbacks.Register("DrawStaticProps", "DSP garlic bread", function(info)
@@ -92,12 +96,18 @@ callbacks.Register("CreateMove", "CM garlic bread", function(usercmd)
 	if engine:IsChatOpen() then return end
 	if engine:Con_IsVisible() or engine:IsGameUIVisible() then return end
 
+	local player = entities:GetLocalPlayer()
+	if not player then return end
+	if not player:IsAlive() then return end
+
+	local weapon = player:GetPropEntity("m_hActiveWeapon")
+
 	triggerbot.CreateMove(usercmd)
-	aimbot.CreateMove(usercmd)
+	aimbot.CreateMove(usercmd, player, weapon)
 	fakelag.CreateMove(usercmd)
-	tickshift.CreateMove(usercmd)
+	tickshift.CreateMove(usercmd, player)
 	antiaim.CreateMove(usercmd)
-	movement.CreateMove(usercmd)
+	movement.CreateMove(usercmd, player)
 	binds.CreateMove(usercmd)
 	chams.CreateMove()
 end)

@@ -83,7 +83,8 @@ function utils.DrawHealthBar(health, maxhealth, top, bottom, left, h, color)
     end
 
     draw.Color(r, g, b, 255)
-    draw.FilledRect(x1, math.floor(y1 + (h * (1 - percent))), x2, y2)
+    --draw.FilledRect(x1, math.floor(y1 + (h * (1 - percent))), x2, y2)
+    draw.FilledRectFade(x1, math.floor(y1 + (h * (1 - percent))), x2, y2, 255, 50, false)
 end
 
 ---@param health integer

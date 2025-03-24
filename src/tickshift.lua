@@ -3,8 +3,6 @@ local gb_settings = GB_SETTINGS
 assert(gb, "tickshift: GB_GLOBALS is nil!")
 assert(gb_settings, "tickshift: GB_SETTINGS is nil!")
 
-local settings = gb_settings.tickshift
-
 local SIGNONSTATE_TYPE = 6
 local CLC_MOVE_TYPE = 9
 
@@ -123,6 +121,7 @@ end
 local function FixTickBase()
 	local player = entities:GetLocalPlayer()
 	if player and old_tickbase then
+
 		player:SetPropInt(old_tickbase - charged_ticks, "m_nTickBase")
 		--- im not sure if this is good enough to fix tickbase
 		--- but spy's revolver seems to be missing less
@@ -166,10 +165,8 @@ function tickshift.SendNetMsg(msg, returnval)
 		if warping and not recharging then
 			gb.bWarping = true
 			HandleWarp(msg)
-			FixTickBase()
 		elseif HandleRecharge() then
 			gb.bRecharging = true
-			FixTickBase()
 			returnval.ret = false
 		end
 	end
@@ -191,14 +188,11 @@ local function AntiWarp(player, usercmd)
 end
 
 ---@param usercmd UserCmd
-function tickshift.CreateMove(usercmd)
+function tickshift.CreateMove(usercmd, player)
 	if engine.IsChatOpen() or engine.IsGameUIVisible() or engine.Con_IsVisible()
 		or gb.bIsStacRunning or not m_enabled or gb.bFakeLagEnabled then
 		return
 	end
-
-	local player = entities:GetLocalPlayer()
-	if (not player) then return end
 
 	m_localplayer_speed = player:EstimateAbsVelocity():Length() or 0
 	m_bIsRED = player:GetTeamNumber() == 2
@@ -227,7 +221,6 @@ function tickshift.CreateMove(usercmd)
 			dt_ticks = dt_ticks + 1
 			charged_ticks = charged_ticks - 1
 			usercmd.sendpacket = false
-			FixTickBase()
 		end
 
 		if clientstate:GetChokedCommands() >= gb_settings.tickshift.doubletap.ticks or dt_ticks >= max_ticks then
@@ -254,19 +247,20 @@ function tickshift.Draw()
 	local formatted_text = string.format("%i / %i", charged_ticks, max_ticks)
 	draw.SetFont(font)
 	local textW, textH = draw.GetTextSize(formatted_text)
-	local textX, textY = math.floor(centerX - (textW / 2)), math.floor(centerY + textH + 20)
 
-	local barWidth = 80
+	local barWidth = 140
+	local barHeight = 20
 	local offset = 2
 	local percent = charged_ticks / max_ticks
-	local barX, barY = centerX - math.floor(barWidth / 2), math.floor(centerY + textH + 20)
+	local barX, barY = centerX - math.floor(barWidth / 2), math.floor(centerY + 40)
+	local textX, textY = math.floor(barX + (barWidth*0.5) - (textW / 2)), math.floor(barY + (barHeight * 0.5) - (textH*0.5))
 
 	draw.Color(table.unpack(colors.WARP_BAR_BACKGROUND))
 	draw.FilledRect(
 		math.floor(barX - offset),
 		math.floor(barY - offset),
 		math.floor(barX + barWidth + offset),
-		math.floor(barY + textH + offset)
+		math.floor(barY + barHeight + offset)
 	)
 
 	local color = m_bIsRED and colors.WARP_BAR_RED or colors.WARP_BAR_BLU
@@ -276,11 +270,12 @@ function tickshift.Draw()
 	--- so this was my solution
 	--- (not ideal)
 	pcall(
-		draw.FilledRect,
+		draw.FilledRectFade,
 		math.floor(barX or 0),
 		math.floor(barY or 0),
 		math.floor((barX or 0) + ((barWidth * (percent or 0)) or 0)),
-		math.floor((barY or 0) + (textH or 0))
+		math.floor(barY + barHeight),
+		255, 50, false
 	)
 
 	draw.SetFont(font)
@@ -292,7 +287,12 @@ function tickshift.FrameStageNotify(stage)
 	if stage == E_ClientFrameStage.FRAME_NET_UPDATE_START then
 		local player = entities:GetLocalPlayer()
 		if not player then return end
-		old_tickbase =  player:GetPropInt("m_nTickBase")
+		old_tickbase = player:GetPropInt("m_nTickBase")
+	end
+
+	if stage == E_ClientFrameStage.FRAME_NET_UPDATE_END then
+		if not recharging then return end
+		FixTickBase()
 	end
 end
 

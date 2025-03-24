@@ -10,11 +10,7 @@ local melee = require("src.aimbot.melee")
 
 local aimbot = {}
 
-function aimbot.CreateMove(usercmd)
-	local player = entities:GetLocalPlayer()
-	if not player or not player:IsAlive() then return end
-
-	local weapon = player:GetPropEntity("m_hActiveWeapon")
+function aimbot.CreateMove(usercmd, player, weapon)
 	local weapontype = weapon:GetWeaponProjectileType()
 
 	if weapontype == E_ProjectileType.TF_PROJECTILE_BULLET then

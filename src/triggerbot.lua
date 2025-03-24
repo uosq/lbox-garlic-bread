@@ -119,8 +119,7 @@ local function AutoSticky(usercmd)
 end
 
 ---@param usercmd UserCmd
----@param weapon Entity
-local function HitscanWeapon(usercmd, weapon)
+local function HitscanWeapon(usercmd)
    local viewangles = engine:GetViewAngles()
    local eyeangles = Vector3(table.unpack(player.eyeangles))
    local dest = eyeangles + (viewangles:Forward() * 8192)
@@ -166,7 +165,7 @@ function triggerbot.CreateMove(usercmd)
    AutoSticky(usercmd)
 
    if player.weapon.is_hitscan and settings.filter.hitscan then
-      HitscanWeapon(usercmd, weapon)
+      HitscanWeapon(usercmd)
       return
 
    elseif player.weapon.is_melee then

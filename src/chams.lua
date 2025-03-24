@@ -177,15 +177,16 @@ function chams.CreateMove()
 end
 
 ---@param dme DrawModelContext
-function chams.DrawModel(dme)
+---@param entity Entity?
+---@param modelname string
+function chams.DrawModel(dme, entity, modelname)
 	if not settings.enabled then return end
 	if player.alive == 0 then return end
 
 	local material = chams_materials[materialmode]
-	local entity = dme:GetEntity()
 
 	--- viewmodel weapon
-	if entity == nil and string.find(dme:GetModelName(), viewmodel_weapon_modelname) then
+	if entity == nil and string.find(modelname, viewmodel_weapon_modelname) then
 		local r, g, b, a = get_color(colors.VIEWMODEL_WEAPON)
 		dme:SetColorModulation(r, g, b)
 		dme:SetAlphaModulation(a)
