@@ -66,7 +66,6 @@ callbacks.Register("FrameStageNotify", "FSN garlic bread", function(stage)
 	triggerbot.FrameStageNotify(stage)
 	visuals.FrameStageNotify(stage)
 	spectators.FrameStageNotify(stage)
-	tickshift.FrameStageNotify(stage)
 end)
 
 ---@param context DrawModelContext
@@ -104,8 +103,8 @@ callbacks.Register("CreateMove", "CM garlic bread", function(usercmd)
 
 	triggerbot.CreateMove(usercmd)
 	aimbot.CreateMove(usercmd, player, weapon)
-	fakelag.CreateMove(usercmd)
 	tickshift.CreateMove(usercmd, player)
+	fakelag.CreateMove(usercmd)
 	antiaim.CreateMove(usercmd)
 	movement.CreateMove(usercmd, player)
 	binds.CreateMove(usercmd)

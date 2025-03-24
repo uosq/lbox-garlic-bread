@@ -31,13 +31,13 @@ local chams_materials =
 
 	textured = materials.Create(
 		"garlic bread textured chams",
-		[[
-  "VertexLitGeneric"
-  {
-    $basetexture "vgui/white_additive"
-  }
-  ]]
-	),
+	[[
+		"VertexLitGeneric"
+  		{
+    		$basetexture "vgui/white_additive"
+  		}
+  	]]
+	)
 }
 
 local colors = require("src.colors")

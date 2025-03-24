@@ -155,7 +155,7 @@ function hitscan:CreateMove(usercmd, plocal)
 		usercmd.buttons = usercmd.buttons | IN_ATTACK2
 	end
 
-   local canshoot = gb.CanWeaponShoot()
+   local canshoot = gb.CanWeaponShoot() or gb.bDoubleTapping
    local is_stac = gb.bIsStacRunning
 
    local aim_mode = is_stac and gb.aimbot_modes.smooth or settings.mode

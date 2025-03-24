@@ -146,16 +146,14 @@ GB_SETTINGS = {
 			send_key = E_ButtonCode.MOUSE_5,
 			recharge_key = E_ButtonCode.MOUSE_4,
 			while_shooting = false,
-			standing_still = false,
-			bar_style = "new", --- replace this with "old" for old lbox-like style
+			standing_still = true,
 
 			recharge = {
-				while_shooting = false,
 				standing_still = true,
 			},
 
 			passive = {
-				enabled = true,
+				enabled = false,
 				while_dead = true,
 				min_time = 0.5,
 				max_time = 5,

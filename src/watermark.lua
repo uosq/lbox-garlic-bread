@@ -5,10 +5,6 @@ local font = draw.CreateFont("TF2 BUILD", 24, 1000)
 local smallfont-- = draw.CreateFont("TF2 BUILD", 12, 1000)
 local settings = GB_SETTINGS.watermark
 
-local stac_detected, no_stac
-stac_detected = {255, 0, 0, 255}
-no_stac = {50, 168, 82, 255}
-
 ---@type string
 local text
 do
@@ -22,11 +18,43 @@ end
 draw.SetFont(font)
 local w, h = draw.GetTextSize(text)
 local x, y = 10, 10
-local padding = 3
-local outline_thickness = 2
+local padding = 2
 
 w = math.floor(w) + padding
 h = math.floor(h) + padding
+
+--[[ source: https://github.com/EmmanuelOga/columns/blob/master/utils/color.lua#L113
+ * Converts an HSV color value to RGB. Conversion formula
+ * adapted from http://en.wikipedia.org/wiki/HSV_color_space.
+ * Assumes h, s, and v are contained in the set [0, 1] and
+ * returns r, g, and b in the set [0, 255].
+ *
+ * @param   Number  h       The hue
+ * @param   Number  s       The saturation
+ * @param   Number  v       The value
+ * @return  Array           The RGB representation
+]]
+local function hsvToRgb(h, s, v, a)
+   local r, g, b
+ 
+   local i = math.floor(h * 6);
+   local f = h * 6 - i;
+   local p = v * (1 - s);
+   local q = v * (1 - f * s);
+   local t = v * (1 - (1 - f) * s);
+ 
+   i = i % 6
+ 
+   if i == 0 then r, g, b = v, t, p
+   elseif i == 1 then r, g, b = q, v, p
+   elseif i == 2 then r, g, b = p, v, t
+   elseif i == 3 then r, g, b = p, q, v
+   elseif i == 4 then r, g, b = t, p, v
+   elseif i == 5 then r, g, b = v, p, q
+   end
+ 
+   return r * 255, g * 255, b * 255, a * 255
+ end
 
 function watermark.Draw()
    if not settings.enabled then return end
@@ -34,18 +62,22 @@ function watermark.Draw()
    if engine:IsTakingScreenshot() then return end
 
    --- outline
-   local color = GB_GLOBALS.bIsStacRunning and stac_detected or no_stac
-   draw.Color(table.unpack(color))
-   draw.FilledRect(x + padding - outline_thickness, y + padding - outline_thickness,
-   x + w + outline_thickness, y + h + outline_thickness)
-
-   --- background
-   draw.Color(40, 40, 40, 255)
-   draw.FilledRect(x + padding, y + padding, x + w, y + h)
-
+   local hue = GB_GLOBALS.bIsStacRunning and 0 or 0.25
    draw.SetFont(font)
-   draw.Color(255, 255, 255, 255)
-   draw.TextShadow(x + padding, y + padding, text)
+
+   do
+      local r, g, b, a = hsvToRgb((globals.TickCount() % 180)/180, 1, 0.5, 1)
+      r, g, b, a = math.floor(r), math.floor(g), math.floor(b), math.floor(a)
+      draw.Color(r, g, b, a)
+      draw.Text(x + padding, y + padding, text)
+   end
+
+   do
+      local r, g, b, a = hsvToRgb(hue, 1, 1, 1)
+      r, g, b, a = math.floor(r), math.floor(g), math.floor(b), math.floor(a)
+      draw.Color(r, g, b, a)
+      draw.Text(x, y, text)
+   end
 
    if GB_GLOBALS.bIsStacRunning then
       if not smallfont then
@@ -62,12 +94,9 @@ function watermark.unload()
    font = nil
    smallfont = nil
    text = nil
-   stac_detected = nil
-   no_stac = nil
    w, h = nil, nil
    x, y = nil, nil
    padding = nil
-   outline_thickness = nil
    watermark = nil
 end
 

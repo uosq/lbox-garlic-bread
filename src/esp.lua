@@ -63,18 +63,7 @@ local function DrawBuildings(class, localplayer, shootpos)
    end
 end
 
-function esp.Draw()
-   if not settings.enabled then return end
-   if engine:IsGameUIVisible() or engine:Con_IsVisible() then return end
-   if not Players or #Players == 0 then return end
-
-   local localplayer = entities:GetLocalPlayer()
-   if not localplayer then return end
-
-   local team = localplayer:GetTeamNumber()
-   local index = localplayer:GetIndex()
-   local shootpos = localplayer:GetAbsOrigin() + localplayer:GetPropVector("m_vecViewOffset[0]")
-
+local function DrawPlayers(shootpos, index, team)
    for _, entity in pairs (Players) do
       if not entity:IsAlive() then goto continue end
       if entity:IsDormant() then goto continue end
@@ -135,6 +124,23 @@ function esp.Draw()
       utils.DrawClass(font, top, entity:GetPropInt("m_PlayerClass", "m_iClass"))
 
       ::continue::
+   end
+end
+
+function esp.Draw()
+   if not settings.enabled then return end
+   if engine:IsGameUIVisible() or engine:Con_IsVisible() then return end
+   if not Players or #Players == 0 then return end
+
+   local localplayer = entities:GetLocalPlayer()
+   if not localplayer then return end
+
+   local team = localplayer:GetTeamNumber()
+   local index = localplayer:GetIndex()
+   local shootpos = localplayer:GetAbsOrigin() + localplayer:GetPropVector("m_vecViewOffset[0]")
+
+   if settings.filter.players then
+      DrawPlayers(shootpos, index, team)
    end
 
    if settings.filter.sentries and Sentries then

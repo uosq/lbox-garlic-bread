@@ -6,6 +6,7 @@ GB_GLOBALS = {
 
 	bWarping = false,
 	bRecharging = false,
+	bDoubleTapping = false,
 
 	nPreAspectRatio = 0,
 
@@ -69,6 +70,7 @@ function GB_GLOBALS.CanWeaponShoot()
 	--- not a good solution but if it works it works
 	if weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_PISTOL_SCOUT
 	or weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_PISTOL then return true end
+	if weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_MINIGUN then return true end
 
 	--- globals.CurTime() is a little bit behind this one
 	--- making us not able to shoot consistently and breaking the pistols

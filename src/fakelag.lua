@@ -100,7 +100,12 @@ function fakelag.SendNetMsg(msg, returnval)
 	if not settings.enabled then return true end
 	if msg:GetType() == 9 and m_bWarping and GetChoked() > 0 and not gb.bIsAimbotShooting then
 		local buffer = BitBuffer()
-		CLC_Move:WriteToBitBuffer(buffer, 2, 1)
+
+		buffer:SetCurBit(6)
+		buffer:WriteInt(2, 4)
+		buffer:WriteInt(1, 3)
+		buffer:SetCurBit(6)
+
 		m_nChokedTicks = m_nChokedTicks - 1
 		buffer:Delete()
 	end

@@ -14,19 +14,17 @@ local last_key_tick = 0
 local next_passive_tick = 0
 
 local m_enabled = true
-local shooting = false
 local warping, recharging = false, false
+local doubletaping = false
 
 local font = draw.CreateFont("TF2 BUILD", 16, 1000)
 
----@type number, boolean
-local m_localplayer_speed, m_bIsRED
-m_bIsRED = false
+---@type number
+local m_localplayer_speed
 
 local colors = require("src.colors")
 
 local tickshift = {}
-local old_tickbase = nil
 
 local function CanChoke()
 	return clientstate:GetChokedCommands() < max_ticks
@@ -51,26 +49,58 @@ function HandleWarp(msg)
 		return
 	end
 
-	if
-		gb.bIsAimbotShooting
-		and gb.usercmd_buttons
-		and gb.usercmd_buttons & IN_ATTACK ~= 0
-	then
-		return
-	end
-
 	if player and player:IsAlive() and charged_ticks > 0 and CanShift() then
 		--local moveMsg = clc_Move()
 
 		--- the new BitBuffer lib
 		local buffer = BitBuffer()
 		buffer:Reset()
-		CLC_Move:WriteToBitBuffer(buffer, 2, 1)
+
+		--- copy message contents
+		msg:WriteToBitBuffer(buffer)
+
+		buffer:Reset()
+
+		buffer:SetCurBit(6)
+		buffer:WriteInt(2, 4) --- new command
+		buffer:WriteInt(1, 3) --- backup commands
+
+		buffer:Reset()
+		buffer:SetCurBit(6)
+
 		msg:ReadFromBitBuffer(buffer)
 		buffer:Delete()
 
 		charged_ticks = charged_ticks - 1
 	end
+end
+
+---@param msg NetMessage
+local function HandleDoubleTap(msg)
+	local player = entities:GetLocalPlayer()
+
+	if not player or not player:IsAlive() then return end
+	if charged_ticks <= 1 then return end
+
+	local buffer = BitBuffer()
+	buffer:Reset()
+
+	--- copy message contents
+	msg:WriteToBitBuffer(buffer)
+
+	buffer:Reset()
+
+	buffer:SetCurBit(6)
+	buffer:WriteInt(3, 4) --- new command
+	buffer:WriteInt(0, 3) --- backup commands
+
+	buffer:Reset()
+	buffer:SetCurBit(6)
+
+	msg:ReadFromBitBuffer(buffer)
+	buffer:Delete()
+
+	charged_ticks = charged_ticks - 2
 end
 
 local function HandlePassiveRecharge()
@@ -99,13 +129,6 @@ local function clamp(value, min, max)
 end
 
 local function HandleRecharge()
-	if
-		(shooting and not gb_settings.tickshift.warp.recharge.while_shooting)
-		or (m_localplayer_speed <= 0 and not gb_settings.tickshift.warp.recharge.standing_still)
-	then
-		return false
-	end
-
 	if CanChoke() and charged_ticks < max_ticks and recharging then
 		charged_ticks = charged_ticks + 1
 		return true
@@ -118,27 +141,15 @@ local function HandleRecharge()
 	return false
 end
 
-local function FixTickBase()
-	local player = entities:GetLocalPlayer()
-	if player and old_tickbase then
-
-		player:SetPropInt(old_tickbase - charged_ticks, "m_nTickBase")
-		--- im not sure if this is good enough to fix tickbase
-		--- but spy's revolver seems to be missing less
-	end
-end
-
 --- Resets the variables to their default state when joining a new server
 ---@param msg NetMessage
 local function HandleJoinServers(msg)
 	if clientstate:GetClientSignonState() == E_SignonState.SIGNONSTATE_SPAWN then
 		m_localplayer_speed = 0
-		m_bIsRED = false
 		max_ticks = GetMaxServerTicks()
 		charged_ticks = 0
 		last_key_tick = 0
 		next_passive_tick = 0
-		shooting = false
 	end
 end
 
@@ -162,7 +173,9 @@ function tickshift.SendNetMsg(msg, returnval)
 	end
 
 	if msg:GetType() == CLC_MOVE_TYPE then
-		if warping and not recharging then
+		if doubletaping then
+			HandleDoubleTap(msg)
+		elseif warping and not recharging then
 			gb.bWarping = true
 			HandleWarp(msg)
 		elseif HandleRecharge() then
@@ -195,15 +208,26 @@ function tickshift.CreateMove(usercmd, player)
 	end
 
 	m_localplayer_speed = player:EstimateAbsVelocity():Length() or 0
-	m_bIsRED = player:GetTeamNumber() == 2
 	max_ticks = GetMaxServerTicks()
 	charged_ticks = clamp(charged_ticks, 0, max_ticks)
 
-	shooting = ((usercmd.buttons & IN_ATTACK) ~= 0 or gb.bIsAimbotShooting) and gb.CanWeaponShoot()
-
-	warping = input.IsButtonDown(gb_settings.tickshift.warp.send_key)
+	warping = input.IsButtonDown(gb_settings.tickshift.warp.send_key) and charged_ticks > 0
 	gb.bWarping = warping
 	recharging = input.IsButtonDown(gb_settings.tickshift.warp.recharge_key) and charged_ticks < max_ticks
+	gb.bRecharging = recharging
+
+	doubletaping = gb_settings.tickshift.doubletap.enabled
+	and input.IsButtonDown(gb_settings.tickshift.doubletap.key)
+	and (usercmd.buttons & IN_ATTACK ~= 0)
+	and charged_ticks > 0
+	and dt_ticks < gb_settings.tickshift.doubletap.ticks
+
+	gb.bDoubleTapping = doubletaping
+
+	if recharging then
+		usercmd.tick_count = 2147483647
+		usercmd.buttons = 0
+	end
 
 	local state, tick = input.IsButtonPressed(gb_settings.tickshift.warp.passive.toggle_key)
 	if state and last_key_tick < tick then
@@ -212,22 +236,8 @@ function tickshift.CreateMove(usercmd, player)
 		client.ChatPrintf("Passive recharge: " .. (gb_settings.tickshift.warp.passive.enabled and "ON" or "OFF"))
 	end
 
-	if gb_settings.tickshift.doubletap.enabled and input.IsButtonDown(gb_settings.tickshift.doubletap.key) and usercmd.buttons & IN_ATTACK ~= 0 then
-		if dt_ticks < gb_settings.tickshift.doubletap.ticks then
-			AntiWarp(player, usercmd)
-		end
-
-		if dt_ticks < gb_settings.tickshift.doubletap.ticks and charged_ticks > 0 then
-			dt_ticks = dt_ticks + 1
-			charged_ticks = charged_ticks - 1
-			usercmd.sendpacket = false
-		end
-
-		if clientstate:GetChokedCommands() >= gb_settings.tickshift.doubletap.ticks or dt_ticks >= max_ticks then
-			usercmd.sendpacket = true
-			dt_ticks = 0
-			charged_ticks = 0
-		end
+	if doubletaping then
+		AntiWarp(player, usercmd)
 	end
 end
 
@@ -248,11 +258,11 @@ function tickshift.Draw()
 	draw.SetFont(font)
 	local textW, textH = draw.GetTextSize(formatted_text)
 
-	local barWidth = 140
+	local barWidth = 200
 	local barHeight = 20
 	local offset = 2
 	local percent = charged_ticks / max_ticks
-	local barX, barY = centerX - math.floor(barWidth / 2), math.floor(centerY + 40)
+	local barX, barY = math.floor(centerX - (barWidth / 2)), math.floor(centerY + 40)
 	local textX, textY = math.floor(barX + (barWidth*0.5) - (textW / 2)), math.floor(barY + (barHeight * 0.5) - (textH*0.5))
 
 	draw.Color(table.unpack(colors.WARP_BAR_BACKGROUND))
@@ -263,36 +273,53 @@ function tickshift.Draw()
 		math.floor(barY + barHeight + offset)
 	)
 
-	local color = m_bIsRED and colors.WARP_BAR_RED or colors.WARP_BAR_BLU
-	draw.Color(table.unpack(color))
-
-	--- i honestly dont know why this errors sometimes
-	--- so this was my solution
-	--- (not ideal)
-	pcall(
-		draw.FilledRectFade,
-		math.floor(barX or 0),
-		math.floor(barY or 0),
-		math.floor((barX or 0) + ((barWidth * (percent or 0)) or 0)),
-		math.floor(barY + barHeight),
-		255, 50, false
+	draw.Color(table.unpack(colors.WARP_BAR_HIGHLIGHT))
+	draw.OutlinedRect(
+		math.floor(barX - offset - 1),
+		math.floor(barY - offset - 1),
+		math.floor(barX + barWidth + offset + 1),
+		math.floor(barY + barHeight + offset + 1)
 	)
+
+	pcall(function()
+		--- amarelo foda
+		draw.Color(table.unpack(colors.WARP_BAR_STARTPOINT))
+		--draw.FilledRectFade(barX, barY, math.floor(barX + (barWidth * percent)), barY + barHeight, 255, 50, true)
+		draw.FilledRectFade(barX, barY, barX + barWidth, barY + barHeight, 255, 50, true)
+
+		--- roxo pica
+		draw.Color(table.unpack(colors.WARP_BAR_ENDPOINT))
+		draw.FilledRectFade(barX, barY, barX + barWidth, barY + barHeight, 50, 255, true)
+
+		--- é a verdadeira barra que mudamos, ela vai da direita pra esquerda pra esconder o gradiente foda
+		draw.Color(table.unpack(colors.WARP_BAR_BACKGROUND))
+		draw.FilledRect(math.floor(barX + (barWidth * percent)), barY, barX + barWidth, barY + barHeight)
+	end)
 
 	draw.SetFont(font)
 	draw.Color(table.unpack(colors.WARP_BAR_TEXT))
 	draw.TextShadow(textX, textY, formatted_text)
-end
 
-function tickshift.FrameStageNotify(stage)
-	if stage == E_ClientFrameStage.FRAME_NET_UPDATE_START then
-		local player = entities:GetLocalPlayer()
-		if not player then return end
-		old_tickbase = player:GetPropInt("m_nTickBase")
-	end
+	do
+		draw.SetFont(font)
+		--- this is the most vile, horrendous, horrible code i have probably ever written
+		--- but if it works, it works
+		local color = doubletaping and {255, 0, 0, 255}
+		or charged_ticks >= max_ticks and {128, 255, 0, 255}
+		or warping and {0, 225, 255, 255}
+		or recharging and {255, 255, 0, 255}
+		or {255, 255, 255, 255}
+		draw.Color(table.unpack(color))
 
-	if stage == E_ClientFrameStage.FRAME_NET_UPDATE_END then
-		if not recharging then return end
-		FixTickBase()
+		local text = doubletaping and "DOUBLETAP"
+		or charged_ticks >= max_ticks and "READY"
+		or warping and "WARPING"
+		or recharging and "RECHARGING"
+		or "IDLE"
+
+		local textW, textH = draw.GetTextSize(text)
+		local textX, textY = math.floor(barX + (barWidth * 0.5) - (textW * 0.5)), math.floor(barY - textH - 2)
+		draw.TextShadow(textX, textY, text)
 	end
 end
 
@@ -301,7 +328,7 @@ local function cmd_ToggleTickShift()
 	printc(150, 255, 150, 255, "Tick shifting is now " .. (m_enabled and "enabled" or "disabled"))
 end
 
-local function unload()
+function tickshift.unload()
 	SIGNONSTATE_TYPE = nil
 	CLC_MOVE_TYPE = nil
 	charged_ticks = nil
@@ -309,16 +336,34 @@ local function unload()
 	last_key_tick = nil
 	next_passive_tick = nil
 	m_enabled = nil
-	shooting = nil
 	warping, recharging = nil, nil
 	font = nil
-	m_localplayer_speed, m_bIsRED = nil, nil
-	m_bIsRED = nil
+	m_localplayer_speed = nil
 	gb_settings.tickshift = nil
 	tickshift = nil
 end
 
-tickshift.unload = unload
+local function cmd_ChangeWarpBarComponentColor(args, num_args)
+	if not args or #args ~= num_args then return end
+
+	local chosen_component = string.upper(tostring(args[1]))
+	local r, g, b, a = tostring(args[2]), tostring(args[3]), tostring(args[4]), tostring(args[5])
+	if not r or not g or not b or not a then return end
+
+	colors["WARP_BAR_" .. chosen_component] = {r, g, b, a}
+end
+
+local function cmd_GetWarpBarComponents()
+	printc(255, 255, 0, 255, "Components:")
+	for key in pairs (colors) do
+		if string.find(key, "WARP") then
+			local formattedtext = string.gsub(key, "WARP_BAR_", "")
+			printc(0, 255, 255, 255, string.lower(formattedtext))
+		end
+	end
+end
 
 gb.RegisterCommand("tickshift->toggle", "Toggles tickshifting (warp, recharge)", 0, cmd_ToggleTickShift)
+gb.RegisterCommand("tickshift->warpbar->change_color", "Changes the color of the chosen component of the warp bar", 5, cmd_ChangeWarpBarComponentColor)
+gb.RegisterCommand("tickshift->warpbar->getcomponents", "Gets the warp bar components you can change with change_color", 0, cmd_GetWarpBarComponents)
 return tickshift
