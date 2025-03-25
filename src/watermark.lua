@@ -2,7 +2,7 @@
 
 local watermark = {}
 local font = draw.CreateFont("TF2 BUILD", 24, 1000)
-local smallfont-- = draw.CreateFont("TF2 BUILD", 12, 1000)
+local smallfont -- = draw.CreateFont("TF2 BUILD", 12, 1000)
 local settings = GB_SETTINGS.watermark
 
 ---@type string
@@ -36,25 +36,31 @@ h = math.floor(h) + padding
 ]]
 local function hsvToRgb(h, s, v, a)
    local r, g, b
- 
+
    local i = math.floor(h * 6);
    local f = h * 6 - i;
    local p = v * (1 - s);
    local q = v * (1 - f * s);
    local t = v * (1 - (1 - f) * s);
- 
+
    i = i % 6
- 
-   if i == 0 then r, g, b = v, t, p
-   elseif i == 1 then r, g, b = q, v, p
-   elseif i == 2 then r, g, b = p, v, t
-   elseif i == 3 then r, g, b = p, q, v
-   elseif i == 4 then r, g, b = t, p, v
-   elseif i == 5 then r, g, b = v, p, q
+
+   if i == 0 then
+      r, g, b = v, t, p
+   elseif i == 1 then
+      r, g, b = q, v, p
+   elseif i == 2 then
+      r, g, b = p, v, t
+   elseif i == 3 then
+      r, g, b = p, q, v
+   elseif i == 4 then
+      r, g, b = t, p, v
+   elseif i == 5 then
+      r, g, b = v, p, q
    end
- 
+
    return r * 255, g * 255, b * 255, a * 255
- end
+end
 
 function watermark.Draw()
    if not settings.enabled then return end
@@ -62,18 +68,18 @@ function watermark.Draw()
    if engine:IsTakingScreenshot() then return end
 
    --- outline
-   local hue = GB_GLOBALS.bIsStacRunning and 0 or 0.25
+   local hue = GB_GLOBALS.bIsStacRunning and 0 or 0.5
    draw.SetFont(font)
 
    do
-      local r, g, b, a = hsvToRgb((globals.TickCount() % 180)/180, 1, 0.5, 1)
+      local r, g, b, a = hsvToRgb(hue, 0, 0.5, 1)
       r, g, b, a = math.floor(r), math.floor(g), math.floor(b), math.floor(a)
       draw.Color(r, g, b, a)
       draw.Text(x + padding, y + padding, text)
    end
 
    do
-      local r, g, b, a = hsvToRgb(hue, 1, 1, 1)
+      local r, g, b, a = hsvToRgb(hue, 0, 1, 1)
       r, g, b, a = math.floor(r), math.floor(g), math.floor(b), math.floor(a)
       draw.Color(r, g, b, a)
       draw.Text(x, y, text)

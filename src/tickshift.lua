@@ -7,7 +7,6 @@ local SIGNONSTATE_TYPE = 6
 local CLC_MOVE_TYPE = 9
 
 local charged_ticks = 0
-local dt_ticks = 0
 
 local max_ticks = 0
 local last_key_tick = 0
@@ -42,65 +41,42 @@ local function GetMaxServerTicks()
 	return 24
 end
 
----@param msg NetMessage
-function HandleWarp(msg)
+---@param buffer BitBuffer
+function HandleWarp(buffer)
 	local player = entities:GetLocalPlayer()
 	if player and m_localplayer_speed <= 0 and not gb_settings.tickshift.warp.standing_still then
 		return
 	end
 
 	if player and player:IsAlive() and charged_ticks > 0 and CanShift() then
-		--local moveMsg = clc_Move()
+		buffer:SetCurBit(0)
 
-		--- the new BitBuffer lib
-		local buffer = BitBuffer()
-		buffer:Reset()
+		buffer:WriteInt(2, 4) --- newcmd
+		buffer:WriteInt(1, 3) --- backupcmd
 
-		--- copy message contents
-		msg:WriteToBitBuffer(buffer)
+		buffer:SetCurBit(0)
 
-		buffer:Reset()
-
-		buffer:SetCurBit(6)
-		buffer:WriteInt(2, 4) --- new command
-		buffer:WriteInt(1, 3) --- backup commands
-
-		buffer:Reset()
-		buffer:SetCurBit(6)
-
-		msg:ReadFromBitBuffer(buffer)
-		buffer:Delete()
-
+		--- make the warp only work once (if its <= 0 it wont try to warp again)
 		charged_ticks = charged_ticks - 1
 	end
 end
 
----@param msg NetMessage
-local function HandleDoubleTap(msg)
+---@param buffer BitBuffer
+local function HandleDoubleTap(buffer, newcmds, backupcmds)
 	local player = entities:GetLocalPlayer()
 
 	if not player or not player:IsAlive() then return end
 	if charged_ticks <= 1 then return end
 
-	local buffer = BitBuffer()
-	buffer:Reset()
+	buffer:SetCurBit(0)
 
-	--- copy message contents
-	msg:WriteToBitBuffer(buffer)
-
-	buffer:Reset()
-
-	buffer:SetCurBit(6)
-	buffer:WriteInt(3, 4) --- new command
+	buffer:WriteInt(newcmds + backupcmds, 4) --- new command
 	buffer:WriteInt(0, 3) --- backup commands
 
-	buffer:Reset()
-	buffer:SetCurBit(6)
+	buffer:SetCurBit(0)
+	charged_ticks = charged_ticks - backupcmds
 
-	msg:ReadFromBitBuffer(buffer)
-	buffer:Delete()
-
-	charged_ticks = charged_ticks - 2
+	recharging = false
 end
 
 local function HandlePassiveRecharge()
@@ -142,8 +118,7 @@ local function HandleRecharge()
 end
 
 --- Resets the variables to their default state when joining a new server
----@param msg NetMessage
-local function HandleJoinServers(msg)
+local function HandleJoinServers()
 	if clientstate:GetClientSignonState() == E_SignonState.SIGNONSTATE_SPAWN then
 		m_localplayer_speed = 0
 		max_ticks = GetMaxServerTicks()
@@ -154,34 +129,40 @@ local function HandleJoinServers(msg)
 end
 
 ---@param msg NetMessage
----@param returnval {ret: boolean}
-function tickshift.SendNetMsg(msg, returnval)
-	gb.bWarping = false
-	gb.bRecharging = false
-
+---@param returnval {ret: boolean, backupcmds: integer, newcmds: integer}
+function tickshift.SendNetMsg(msg, buffer, returnval)
 	--- return early if user disabled with console commands
 	if not m_enabled then return true end
 
 	if msg:GetType() == SIGNONSTATE_TYPE then
-		HandleJoinServers(msg)
+		HandleJoinServers()
 	end
 
-	if gb.bIsStacRunning or gb.bFakeLagEnabled then return true end
+	--if gb.bIsStacRunning or gb.bFakeLagEnabled then return true end
 
 	if engine.IsChatOpen() or engine.IsGameUIVisible() or engine.Con_IsVisible() then
 		return true
 	end
 
 	if msg:GetType() == CLC_MOVE_TYPE then
+		buffer:SetCurBit(0)
+
+		buffer:WriteInt(returnval.newcmds, 4)
+		buffer:WriteInt(returnval.backupcmds, 3)
+
 		if doubletaping then
-			HandleDoubleTap(msg)
+			HandleDoubleTap(buffer, returnval.newcmds, returnval.backupcmds)
 		elseif warping and not recharging then
-			gb.bWarping = true
-			HandleWarp(msg)
+			HandleWarp(buffer)
 		elseif HandleRecharge() then
 			gb.bRecharging = true
+			recharging = true
 			returnval.ret = false
 		end
+
+		buffer:SetCurBit(0)
+		msg:ReadFromBitBuffer(buffer)
+		buffer:Delete()
 	end
 end
 
@@ -203,7 +184,7 @@ end
 ---@param usercmd UserCmd
 function tickshift.CreateMove(usercmd, player)
 	if engine.IsChatOpen() or engine.IsGameUIVisible() or engine.Con_IsVisible()
-		or gb.bIsStacRunning or not m_enabled or gb.bFakeLagEnabled then
+		or gb.bIsStacRunning or not m_enabled --[[or gb.bFakeLagEnabled]] then
 		return
 	end
 
@@ -220,12 +201,12 @@ function tickshift.CreateMove(usercmd, player)
 	and input.IsButtonDown(gb_settings.tickshift.doubletap.key)
 	and (usercmd.buttons & IN_ATTACK ~= 0)
 	and charged_ticks > 0
-	and dt_ticks < gb_settings.tickshift.doubletap.ticks
 
 	gb.bDoubleTapping = doubletaping
 
 	if recharging then
-		usercmd.tick_count = 2147483647
+		usercmd.tick_count = 0
+		usercmd.command_number = 0
 		usercmd.buttons = 0
 	end
 
@@ -246,7 +227,7 @@ function tickshift.Draw()
 		engine:Con_IsVisible()
 		or engine:IsGameUIVisible()
 		or (engine:IsTakingScreenshot() and gui.GetValue("clean screenshots") == 1)
-		or not m_enabled or gb.bIsStacRunning or gb.bFakeLagEnabled
+		or not m_enabled or gb.bIsStacRunning --[[or gb.bFakeLagEnabled]]
 	then
 		return
 	end
@@ -300,18 +281,20 @@ function tickshift.Draw()
 	draw.Color(table.unpack(colors.WARP_BAR_TEXT))
 	draw.TextShadow(textX, textY, formatted_text)
 
-	do
+	do --- charge bar status
 		draw.SetFont(font)
 		--- this is the most vile, horrendous, horrible code i have probably ever written
 		--- but if it works, it works
-		local color = doubletaping and {255, 0, 0, 255}
+		local color = gb_settings.fakelag.enabled and {255, 150, 150, 255}
+		or doubletaping and {255, 0, 0, 255}
 		or charged_ticks >= max_ticks and {128, 255, 0, 255}
 		or warping and {0, 225, 255, 255}
 		or recharging and {255, 255, 0, 255}
 		or {255, 255, 255, 255}
 		draw.Color(table.unpack(color))
 
-		local text = doubletaping and "DOUBLETAP"
+		local text = gb_settings.fakelag.enabled and "FAKELAGGING"
+		or doubletaping and "DOUBLETAP"
 		or charged_ticks >= max_ticks and "READY"
 		or warping and "WARPING"
 		or recharging and "RECHARGING"

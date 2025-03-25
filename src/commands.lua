@@ -62,7 +62,7 @@ local function SendStringCmd(cmd)
 	end
 end
 
-local function print_help(args)
+local function print_help()
 	printc(255, 150, 150, 255, "Stac is " .. (GB_GLOBALS.bIsStacRunning and "detected" or "not running") .. " in this server")
 	printc(255, 255, 255, 255, "The commands are:")
 	for name, props in pairs (m_commands) do
@@ -79,7 +79,7 @@ local function find_cmd(args, num_args)
 
 	for name, command in pairs (m_commands) do
 		if string.find(name, pattern) then
-			printc(0, 255, 255, 255, tostring(name))
+			printc(0, 255, 255, 255, tostring(name) .. " : " .. tostring(command.help))
 		end
 	end
 end

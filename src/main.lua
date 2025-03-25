@@ -29,13 +29,36 @@ local mats = require("src.custom materials")
 require("src.convars")
 require("src.background")
 
+local function clamp(value, min, max)
+	return math.min(math.max(value, min), max)
+end
+
 --- i just dont like having to deal with LSP bullshit
 ---@param msg NetMessage
 local function SendNetMsg(msg)
 	local returnval = {ret = true}
+
+	local buffer = BitBuffer()
+	buffer:SetCurBit(0)
+
+	local chokedcommands = clientstate:GetChokedCommands()
+	local newcmds, backupcmds
+	newcmds = 1 + chokedcommands
+	newcmds = clamp(newcmds, 0, 15)
+
+	local extracmds = chokedcommands + 1 - newcmds
+	backupcmds = math.max(2, extracmds)
+	backupcmds = clamp(backupcmds, 0, 7)
+
+	buffer:WriteInt(newcmds, 4)
+	buffer:WriteInt(backupcmds, 3)
+
+	returnval.newcmds = newcmds
+	returnval.backupcmds = backupcmds
+
 	spoof.SendNetMsg(msg, returnval)
-	fakelag.SendNetMsg(msg, returnval)
-	tickshift.SendNetMsg(msg, returnval)
+	fakelag.SendNetMsg(msg, buffer, returnval)
+	tickshift.SendNetMsg(msg, buffer, returnval)
 
 	--- tables and objects (userdata?) are the only ones lua passes by reference and not by value!
 	return returnval.ret
@@ -103,8 +126,8 @@ callbacks.Register("CreateMove", "CM garlic bread", function(usercmd)
 
 	triggerbot.CreateMove(usercmd)
 	aimbot.CreateMove(usercmd, player, weapon)
-	tickshift.CreateMove(usercmd, player)
 	fakelag.CreateMove(usercmd)
+	tickshift.CreateMove(usercmd, player)
 	antiaim.CreateMove(usercmd)
 	movement.CreateMove(usercmd, player)
 	binds.CreateMove(usercmd)

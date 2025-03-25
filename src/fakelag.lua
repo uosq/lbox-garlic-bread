@@ -52,9 +52,9 @@ function fakelag.CreateMove(usercmd)
 		return
 	end
 
-	if m_nCurrentState == states.choking and not (usercmd.buttons & IN_ATTACK ~= 0 and gb.CanWeaponShoot()) and not gb.bIsStacRunning then
+	if m_nCurrentState == states.choking and not gb.bIsStacRunning then
 		if GetChoked() < settings.ticks then
-			usercmd.sendpacket = usercmd.buttons & IN_ATTACK == 1
+			usercmd.sendpacket = usercmd.buttons & IN_ATTACK ~= 0 and gb.CanWeaponShoot()
 		else
 			m_nCurrentState = states.recharging
 		end
@@ -95,19 +95,17 @@ end
 
 --- i honestly dont know if this is needed, but just in case, we warp when not choking to be able to choke more
 ---@param msg NetMessage
----@param returnval {ret: boolean}
-function fakelag.SendNetMsg(msg, returnval)
+---@param returnval {ret: boolean, backupcmds: integer, newcmds: integer}
+function fakelag.SendNetMsg(msg, buffer, returnval)
 	if not settings.enabled then return true end
 	if msg:GetType() == 9 and m_bWarping and GetChoked() > 0 and not gb.bIsAimbotShooting then
-		local buffer = BitBuffer()
 
-		buffer:SetCurBit(6)
-		buffer:WriteInt(2, 4)
-		buffer:WriteInt(1, 3)
-		buffer:SetCurBit(6)
+		buffer:SetCurBit(0)
+		buffer:WriteInt(returnval.newcmds + returnval.backupcmds, 4)
+		buffer:WriteInt(0, 3)
+		buffer:SetCurBit(0)
 
 		m_nChokedTicks = m_nChokedTicks - 1
-		buffer:Delete()
 	end
 	returnval.ret = true
 end
