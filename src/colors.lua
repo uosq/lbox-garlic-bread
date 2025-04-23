@@ -47,8 +47,6 @@ local COLORS = {
     WARP_BAR_HIGHLIGHT = { 192, 192, 192, 255 },
 }
 
-local divided = 1 / 255
-
 --- used for string.find
 local WEARABLES_CLASS = "Wearable"
 local TEAM_RED = 2

@@ -8,13 +8,18 @@ local hitscan = require("src.aimbot.hitscan")
 local melee = require("src.aimbot.melee")
 ---local projectile = require("src.aimbot.projectile") WARNING: todo :)
 
+local rad = math.rad
+local tan = math.tan
+local rad45 = rad(45)
+local aimfov = 0
+
 local aimbot = {}
 
 function aimbot.CreateMove(usercmd, player, weapon)
 	local weapontype = weapon:GetWeaponProjectileType()
 
 	if weapontype == E_ProjectileType.TF_PROJECTILE_BULLET then
-		hitscan:CreateMove(usercmd, player)
+		hitscan:CreateMove(usercmd, player, aimfov)
 	elseif weapon:IsMeleeWeapon() then
 		melee:CreateMove(usercmd, weapon, player:GetTeamNumber())
 	elseif weapontype ~= E_ProjectileType.TF_PROJECTILE_BULLET then
@@ -23,6 +28,11 @@ function aimbot.CreateMove(usercmd, player, weapon)
 end
 
 function aimbot.Draw()
+	local viewfov = gb_settings.visuals.custom_fov
+	local aspectratio = (gb_settings.visuals.aspect_ratio == 0 and gb.nPreAspectRatio or gb_settings.visuals.aspect_ratio)
+	viewfov = helpers:calc_fov(viewfov, aspectratio)
+	aimfov = (gb_settings.aimbot.fov * (tan(rad(viewfov / 2)) / tan(rad45)))
+
 	if not gb_settings.aimbot.fov_indicator or not gb_settings.aimbot.enabled then
 		return
 	end
@@ -30,19 +40,9 @@ function aimbot.Draw()
 	local localplayer = entities:GetLocalPlayer()
 	if not localplayer then return end
 
-	local width, height = draw.GetScreenSize()
-
 	if localplayer and localplayer:IsAlive() and gb_settings.aimbot.fov <= 89 then
-		local viewfov = gb_settings.visuals.custom_fov
-		local aspectratio = (gb_settings.visuals.aspect_ratio == 0 and gb.nPreAspectRatio or gb_settings.visuals.aspect_ratio)
-		viewfov = helpers:calc_fov(viewfov, aspectratio)
-		local aimfov = gb_settings.aimbot.fov * (math.tan(math.rad(viewfov / 2)) / math.tan(math.rad(45)))
-
-		if not aimfov or not viewfov then
-			return
-		end
-
-		local radius = (math.tan(math.rad(aimfov) / 2)) / (math.tan(math.rad(viewfov) / 2)) * width
+		local width, height = draw.GetScreenSize()
+		local radius = (tan(rad(aimfov) / 2)) / (tan(rad(viewfov) / 2)) * width
 		draw.Color(255, 255, 255, 255)
 		draw.OutlinedCircle(math.floor(width / 2), math.floor(height / 2), math.floor(radius), 64)
 	end
@@ -108,7 +108,7 @@ local function cmd_ChangeAimSmoothness(args, num_args)
 		printc(255, 150, 150, 255, "Invalid value!")
 		return
 	end
-	gb_settings.aimbot.smooth_value = new_value
+	gb_settings.aimbot.smooth_value = new_value * 0.01
 end
 
 gb.RegisterCommand(

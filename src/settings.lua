@@ -14,7 +14,7 @@ GB_SETTINGS = {
         autoshoot = true,
         mode = aimbot_mode.silent,
         lock_aim = false,
-        smooth_value = 1, --- lower value, smoother aimbot (10 = very smooth, 100 = basically plain aimbot)
+        smooth_value = 0.01, --- lower value, smoother aimbot (0.01 = very smooth, 1 = basically plain aimbot)
         auto_spinup = true,
         fov_indicator = false,
         humanized_smooth = true,

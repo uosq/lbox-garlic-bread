@@ -60,10 +60,12 @@ local function update_entities()
     if player.alive == 0 then return end
 
     local new_entitylist = {}
-    for _, entity in pairs(Players) do
+    for index = 1, globals.MaxClients() do
         if not settings.filter.players then break end
 
-        local index = entity:GetIndex()
+        local entity = entities.GetByIndex(index)
+        if not entity then goto continue end
+        if not entity:IsPlayer() then goto continue end
         if entity:IsDormant() then goto continue end
         if not entity:IsAlive() then goto continue end
         if not settings.filter.localplayer and index == player.index then goto continue end

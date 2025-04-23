@@ -28,7 +28,6 @@ local mats = require("src.custom materials")
 local outline = require("src.outline")
 
 require("src.convars")
-require("src.background")
 
 local function clamp(value, min, max)
     return math.min(math.max(value, min), max)
@@ -118,8 +117,33 @@ end)
 
 ---@param usercmd UserCmd
 callbacks.Register("CreateMove", "CM garlic bread", function(usercmd)
+    if clientstate:GetNetChannel() then
+        --- i forgot we dont even need to do this
+        --[[local temp = {}
+        for i = 1, globals.MaxClients() do
+            temp[i] = true
+        end
+
+        Players = temp]]
+        --Players = entities.FindByClass("CTFPlayer")
+        Sentries = entities.FindByClass("CObjectSentrygun")
+        Dispensers = entities.FindByClass("CObjectDispenser")
+        Teleporters = entities.FindByClass("CObjectTeleporter")
+
+        if client.GetConVar("glow_outline_effect_enable") == 1 then
+            client.SetConVar("glow_outline_effect_enable", "0")
+        end
+    else
+        Players, Sentries, Dispensers, Teleporters = nil, nil, nil, nil
+    end
+
     if engine:IsChatOpen() then return end
     if engine:Con_IsVisible() or engine:IsGameUIVisible() then return end
+
+    --- only make it run every even tick
+    --[[if globals.MaxClients() > 50 and usercmd.tick_count % 5 ~= 0 then
+        return
+    end]]
 
     local player = entities:GetLocalPlayer()
     if not player then return end
@@ -135,6 +159,10 @@ callbacks.Register("CreateMove", "CM garlic bread", function(usercmd)
     movement.CreateMove(usercmd, player)
     binds.CreateMove(usercmd)
     chams.CreateMove()
+
+    if clientstate:GetChokedCommands() >= 21 then
+        usercmd.sendpacket = true
+    end
 end)
 
 callbacks.Register("Unload", "UL garlic bread unload", function()
@@ -163,9 +191,12 @@ callbacks.Register("Unload", "UL garlic bread unload", function()
     mats.unload()
     watermark.unload()
     outline.unload()
+    Players, Sentries, Dispensers, Teleporters = nil, nil, nil, nil
 
     GB_SETTINGS = nil
     GB_GLOBALS = nil
 
     collectgarbage("collect")
+
+    printc(255, 255, 255, 255, "Garlic Bread unloaded")
 end)

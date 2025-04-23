@@ -65,7 +65,10 @@ local function DrawBuildings(class, localplayer, shootpos)
 end
 
 local function DrawPlayers(shootpos, index, team)
-    for _, entity in pairs(Players) do
+    for i = 1, globals.MaxClients() do
+        local entity = entities.GetByIndex(i)
+        if not entity then goto continue end
+        if not entity:IsPlayer() then goto continue end
         if not entity:IsAlive() then goto continue end
         if entity:IsDormant() then goto continue end
         if entity:GetTeamNumber() == team and settings.enemy_only and entity:GetIndex() ~= index then goto continue end

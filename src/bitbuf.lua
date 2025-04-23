@@ -23,10 +23,11 @@ end
 ---@param cvarValue string
 function CLC_RespondCvarValue:WriteToBitBuffer(buffer, cvarName, cvarValue)
 	buffer:Reset()
-	buffer:SetCurBit(MSG_SIZE)
+	--- skip msg type and m_iCookie
+	buffer:SetCurBit(MSG_SIZE + 32)
 
 	--- skip cookie, we dont care about it :(
-	buffer:ReadInt(32) --- m_iCookie
+	--buffer:ReadInt(32) --- m_iCookie
 	local _, statusEndPos = buffer:ReadInt(4) --- m_eStatusCode
 
 	local _, cvarNameEndPos = buffer:ReadString(32)

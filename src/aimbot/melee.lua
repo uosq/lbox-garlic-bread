@@ -1,8 +1,9 @@
 local gb = GB_GLOBALS
+local gb_settings = GB_SETTINGS
 assert(gb, "melee.lua: gb_globals is nil!")
+assert(gb_settings, "melee.lua: gb_settings is nil!")
 
 local melee = {}
-local gb_settings = GB_SETTINGS
 local helpers = require("src.aimbot.helpers")
 
 ---@param usercmd UserCmd

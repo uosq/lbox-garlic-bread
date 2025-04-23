@@ -15,6 +15,7 @@ local next_passive_tick = 0
 local m_enabled = true
 local warping, recharging = false, false
 local doubletaping = false
+local old_clinterp = 0.03
 
 local font = draw.CreateFont("TF2 BUILD", 16, 1000)
 
@@ -226,7 +227,8 @@ function tickshift.CreateMove(usercmd, player)
     if netchan then
         --- the cause of the jittering when recharging is the clientsided interp
         --- this should fix it, but it does exactly 0 shit
-        netchan:SetInterpolationAmount(recharging and 0 or 0.030000)
+        _, old_clinterp = client.GetConVar("cl_interp")
+        netchan:SetInterpolationAmount(recharging and 0 or old_clinterp)
     end
 end
 
