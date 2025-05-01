@@ -76,6 +76,7 @@ callbacks.Register("Draw", "DRAW garlic bread", function()
     spectators.Draw()
     watermark.Draw()
     visuals.Draw()
+    gui.Draw()
 end)
 
 ---@param setup ViewSetup

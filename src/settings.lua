@@ -191,6 +191,11 @@ GB_SETTINGS = {
         localplayer = true,
     },
 
+    gui = {
+        visible = true,
+        toggle = E_ButtonCode.KEY_HOME
+    },
+
     --[[info_panel = { planned to do later
 		enabled = true,
 		background = {40, 40, 40, 240},

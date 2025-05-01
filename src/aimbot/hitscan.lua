@@ -150,12 +150,6 @@ local function CheckPlayers(usercmd, shoot_pos, m_team, punchangles, should_aim_
     end
 end
 
----@param cmd UserCmd
----@param aimtable AimTable
-local function SilentAim(cmd, plocal, aimtable)
-    local viewangle = cmd.viewangles
-end
-
 ---@param usercmd UserCmd
 ---@param plocal Entity
 function hitscan:CreateMove(usercmd, plocal, aimfov)
@@ -197,13 +191,14 @@ function hitscan:CreateMove(usercmd, plocal, aimfov)
     ---@type AimTable
     local aimtable = { bestangle = nil, bestfov = aimbotfov, targetindex = nil }
 
-    local bestangle = aimtable.bestangle
-    local targetindex = aimtable.targetindex
-
     CheckClass(Dispensers, shootpos, usercmd, punchangle, aimtable)
     CheckClass(Teleporters, shootpos, usercmd, punchangle, aimtable)
     CheckPlayers(usercmd, shootpos, team, punchangle, aim_at_head, aimtable)
     CheckClass(Sentries, shootpos, usercmd, punchangle, aimtable)
+
+    local bestangle = aimtable.bestangle
+    local targetindex = aimtable.targetindex
+
     if not bestangle or not targetindex then return end
 
     local viewangle = usercmd.viewangles
