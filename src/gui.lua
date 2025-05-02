@@ -12,7 +12,32 @@ local font = draw.CreateFont("TF2 BUILD", 12, 1000)
 local oldmx, oldmy = 0, 0
 local dragging = false
 
+--- window's variables
 local wx, wy = 10, 120
+local w_background = {40, 40, 40, 255}
+local w_border = 2
+local w_title = "garlic bread"
+local w_titlesize = 25
+local w_outline = {0, 150, 150, 255}
+local w_width = 400
+local w_height = 300
+
+draw.SetFont(font)
+local wtw, wth = draw.GetTextSize(w_title)
+---
+
+--- button's variables
+local btn_border = 2
+local btn_background = {35, 35, 35, 255}
+local btn_hover = {60, 60, 60, 255}
+local btn_click = {100, 100, 100, 255}
+---
+
+--- slider's variables
+local sld_border = 2
+local sld_background = {35, 35, 35, 255}
+local sld_bar = {0, 150, 150, 255}
+---
 
 local function ispressed(state, tick)
    if state and tick > last_tick then
@@ -27,29 +52,63 @@ local function isinside(x, y, width, height)
    return mx >= x and my >= y and mx <= x + width and my <= y + height
 end
 
+local function Window(mousedown, mx, my)
+   draw.Color(table.unpack(w_outline))
+   draw.FilledRect(wx - w_border, wy - w_border, wx + w_width + w_border, wy + w_height + w_border)
+
+   draw.Color(table.unpack(w_background))
+   draw.FilledRect(wx, wy, wx + w_width, wy + w_height)
+
+   --- title
+    draw.Color(table.unpack(w_outline))
+    draw.FilledRect(wx - w_border, wy - w_titlesize - w_border, wx + w_width + w_border, wy)
+
+   draw.SetFont(font)
+   draw.Color(255, 255, 255, 255)
+   draw.TextShadow(wx + (w_width // 2) - (wtw // 2), wy - (w_titlesize // 2) - (wth // 2), w_title)
+
+   if isinside(wx - w_border, wy - w_titlesize - w_border, w_width + w_border, w_titlesize) and mousedown then
+      dragging = true
+   end
+
+   if input.IsButtonReleased(E_ButtonCode.MOUSE_LEFT) and dragging then
+      dragging = false
+   end
+
+   if dragging then
+      local dx, dy = mx - oldmx, my - oldmy --- delta from position from last Draw call and this one
+      local sw, sh = draw.GetScreenSize()
+
+      if wx + dx - w_border >= 0 and wx + dx + w_border + w_width <= sw then
+         wx = wx + dx
+      end
+
+      if wy + dy - w_titlesize - w_border >= 0 and wy + w_height + dy + w_border <= sh then
+         wy = wy + dy
+      end
+   end
+end
+
 ---@param state boolean
 ---@param tick integer
 ---@param x integer
 ---@param y integer
 ---@param width integer
 ---@param height integer
----@param wx integer Window X
----@param wy integer Window Y
 ---@param text string
 ---@return boolean Returns true if it was clicked, and false if not
-local function Button(state, tick, x, y, width, height, wx, wy, text)
-   local background = {35, 35, 35, 255}
-   local unformat = "Aimbot: %s"
-   local border = 2
-
+local function Button(state, tick, x, y, width, height, text)
    --- make them relative to window x and y
-   local x = x + wx
-   local y = y + wy
+   x, y = x + wx, y + wy
+
+   local inside = isinside(x - btn_border, y - btn_border, width + btn_border, height + btn_border)
 
    draw.Color(255, 255, 255, 255)
-   draw.FilledRect(x - border, y - border, x + width + border, y + height + border)
+   draw.FilledRect(x - btn_border, y - btn_border, x + width + btn_border, y + height + btn_border)
 
-   draw.Color(table.unpack(background))
+   local color = (inside and input.IsButtonDown(E_ButtonCode.MOUSE_LEFT)) and btn_click or inside and btn_hover or btn_background
+
+   draw.Color(table.unpack(color))
    draw.FilledRect(x, y, x + width, y + height)
 
    draw.SetFont(font)
@@ -59,12 +118,57 @@ local function Button(state, tick, x, y, width, height, wx, wy, text)
    draw.Color(255, 255, 255, 255)
    draw.TextShadow(tx, ty, text)
 
-   if ispressed(state, tick) and isinside(x - border, y - border, width + border, height + border) then
+   if inside and ispressed(state, tick) then
       last_tick = tick
       return true
    end
 
    return false
+end
+
+---@param mousedown boolean
+---@param x integer
+---@param y integer
+---@param width integer
+---@param height integer
+---@param min integer
+---@param value integer
+---@param max integer
+---@return integer? Returns a new value if its clicked
+local function Slider(mousedown, x, y, width, height, min, value, max, text)
+   --- make them relative to the window's x and y
+   x, y = x + wx, y + wy
+
+   --- make the % be in the range [0, 1]
+   local delta = max - min
+   local percentage = (value - min) / delta
+
+   --- outline
+   draw.Color(255, 255, 255, 255)
+   draw.FilledRect(x - sld_border, y - sld_border, x + width + sld_border, y + height + sld_border)
+
+   --- background
+   draw.Color(table.unpack(sld_background))
+   draw.FilledRect(x, y, x + width, y + height)
+
+   --- bar
+   draw.Color(table.unpack(sld_bar))
+   draw.FilledRect(x, y, (x + (width * percentage) // 1), y + height)
+
+   --- text
+   draw.SetFont(font)
+   local tw, th = draw.GetTextSize(text)
+   draw.Color(255, 255, 255, 255)
+   draw.TextShadow(x + 2, y + (th // 2), text)
+
+   --- mousedown = input.IsButtonDown(MOUSE_LEFT)
+   if mousedown and isinside(x, y, width, height) then
+      local mousepos = input.GetMousePos()
+      local dx = mousepos[1] - x
+      return min + ((dx / width) * delta) --- floor it
+   end
+
+   return nil
 end
 
 function gui.Draw()
@@ -83,6 +187,7 @@ function gui.Draw()
 
    local left, ltick = input.IsButtonPressed(E_ButtonCode.MOUSE_LEFT)
    local right, rtick = input.IsButtonPressed(E_ButtonCode.MOUSE_RIGHT)
+   local mousedown = input.IsButtonDown(E_ButtonCode.MOUSE_LEFT)
 
    local mousepos = input.GetMousePos()
    local mx, my = mousepos[1], mousepos[2]
@@ -91,50 +196,7 @@ function gui.Draw()
    -- im just gonna inline everything
    -- its too much work for a programming language that doesnt support OOP out of the box
 
-   do --- window
-      local width, height = 400, 300
-      local background = {40, 40, 40, 255}
-      local outline = {0, 150, 150, 255}
-      local title = "Garlic Bread"
-      local title_size = 25
-      local border = 2
-
-      draw.Color(table.unpack(outline))
-      draw.FilledRect(wx - border, wy - border, wx + width + border, wy + height + border)
-
-      draw.Color(table.unpack(background))
-      draw.FilledRect(wx, wy, wx + width, wy + height)
-
-      --- title
-      draw.Color(table.unpack(outline))
-      draw.FilledRect(wx - border, wy - title_size - border, wx + width + border, wy)
-
-      draw.SetFont(font)
-      local tw, th = draw.GetTextSize(title)
-      draw.Color(255, 255, 255, 255)
-      draw.TextShadow(wx + (width // 2) - (tw // 2), wy - (title_size // 2) - (th // 2), title)
-
-      if isinside(wx - border, wy - title_size - border, width + border, title_size) and input.IsButtonDown(E_ButtonCode.MOUSE_LEFT) then
-         dragging = true
-      end
-
-      if input.IsButtonReleased(E_ButtonCode.MOUSE_LEFT) and dragging then
-         dragging = false
-      end
-
-      if dragging then
-         local dx, dy = mx - oldmx, my - oldmy --- delta from position from last Draw call and this one
-         local sw, sh = draw.GetScreenSize()
-
-         if wx + dx - border >= 0 and wx + dx + border + width <= sw then
-            wx = wx + dx
-         end
-
-         if wy + dy - title_size - border >= 0 and wy + height + dy + border <= sh then
-            wy = wy + dy
-         end
-      end
-   end
+   Window(mousedown, mx, my)
 
    do --- aimbot toggle
       local width, height = 120, 20
@@ -144,7 +206,7 @@ function gui.Draw()
       local text = string.format(unformat, enabled and "ON" or "OFF")
 
       --- if it was clicked, invert the value
-      if Button(left, ltick, x, y, width, height, wx, wy, text) then
+      if Button(left, ltick, x, y, width, height, text) then
          gb_settings.aimbot.enabled = not enabled
       end
    end
@@ -156,7 +218,7 @@ function gui.Draw()
       local enabled = gb_settings.aimbot.fov_indicator
       local text = string.format(unformat, enabled and "ON" or "OFF")
 
-      if Button(left, ltick, x, y, width, height, wx, wy, text) then
+      if Button(left, ltick, x, y, width, height, text) then
          gb_settings.aimbot.fov_indicator = not gb_settings.aimbot.fov_indicator
       end
    end
@@ -168,26 +230,9 @@ function gui.Draw()
       local fov = gb_settings.aimbot.fov
       local text = string.format(unformat, fov)
 
-      --- this is janky
-      -- rendering the same button twice is not a good solution
-      -- WARNING: fix this later
-
-      if Button(left, ltick, x, y, width, height, wx, wy, text) then
-         fov = fov + 1
-         if fov > 180 then
-            fov = 1
-         end
-
-         gb_settings.aimbot.fov = fov
-
-      --- right click, THIS IS NOT A GOOD SOLUTION!
-      elseif Button(right, rtick, x, y, width, height, wx, wy, text) then
-         fov = fov - 1
-         if fov <= 0 then
-            fov = 180
-         end
-
-         gb_settings.aimbot.fov = fov
+      local newvalue = Slider(mousedown, x, y, width, height, 0, fov, 180, text)
+      if newvalue then
+         gb_settings.aimbot.fov = newvalue
       end
    end
 

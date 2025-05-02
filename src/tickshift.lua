@@ -11,6 +11,7 @@ local charged_ticks = 0
 local max_ticks = 0
 local last_key_tick = 0
 local next_passive_tick = 0
+local last_percent = nil
 
 local m_enabled = true
 local warping, recharging = false, false
@@ -25,6 +26,10 @@ local m_localplayer_speed
 local colors = require("src.colors")
 
 local tickshift = {}
+
+local function lerp(a, b, t)
+    return a + ((b - a) * t)
+end
 
 local function CanChoke()
     return clientstate:GetChokedCommands() < max_ticks
@@ -257,6 +262,14 @@ function tickshift.Draw()
     local textX, textY = math.floor(barX + (barWidth * 0.5) - (textW / 2)),
         math.floor(barY + (barHeight * 0.5) - (textH * 0.5))
 
+    if not last_percent then
+        last_percent = percent
+    end
+
+    local speed = 0.05
+    last_percent = lerp(last_percent, percent, speed)
+    last_percent = clamp(last_percent, 0.0, 1.0)
+
     draw.Color(table.unpack(colors.WARP_BAR_BACKGROUND))
     draw.FilledRect(
         math.floor(barX - offset),
@@ -285,7 +298,7 @@ function tickshift.Draw()
 
         --- é a verdadeira barra que mudamos, ela vai da direita pra esquerda pra esconder o gradiente foda
         draw.Color(table.unpack(colors.WARP_BAR_BACKGROUND))
-        draw.FilledRect(math.floor(barX + (barWidth * percent)), barY, barX + barWidth, barY + barHeight)
+        draw.FilledRect(math.floor(barX + (barWidth * last_percent)), barY, barX + barWidth, barY + barHeight)
     end)
 
     draw.SetFont(font)

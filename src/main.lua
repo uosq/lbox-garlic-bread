@@ -152,11 +152,12 @@ callbacks.Register("CreateMove", "CM garlic bread", function(usercmd)
 
     local weapon = player:GetPropEntity("m_hActiveWeapon")
 
+    antiaim.CreateMove(usercmd)
     triggerbot.CreateMove(usercmd)
     aimbot.CreateMove(usercmd, player, weapon)
     fakelag.CreateMove(usercmd)
     tickshift.CreateMove(usercmd, player)
-    antiaim.CreateMove(usercmd)
+    --antiaim.CreateMove(usercmd)
     movement.CreateMove(usercmd, player)
     binds.CreateMove(usercmd)
     chams.CreateMove()
