@@ -12,18 +12,31 @@ local font = draw.CreateFont("TF2 BUILD", 12, 1000)
 local oldmx, oldmy = 0, 0
 local dragging = false
 
+--- state
+--local tabs = {aimbot = 0, esp = 1, chams = 2}
+local tabs = {"aimbot", "esp", "chams", "misc"}
+local tab = 1
+local tabnum = #tabs
+---
+
 --- window's variables
 local wx, wy = 10, 120
 local w_background = {40, 40, 40, 255}
 local w_border = 2
-local w_title = "garlic bread"
+local w_title = "garlic bread - %s"
 local w_titlesize = 25
 local w_outline = {0, 150, 150, 255}
 local w_width = 400
 local w_height = 300
 
-draw.SetFont(font)
+local w_halfwidth = w_width / 2
+local w_halfheight = w_height / 2
+local w_halftitlesize = w_titlesize // 2
+
+--[[draw.SetFont(font)
 local wtw, wth = draw.GetTextSize(w_title)
+
+local w_halftw, w_halfth = wtw // 2, wth // 2]]
 ---
 
 --- button's variables
@@ -64,8 +77,11 @@ local function Window(mousedown, mx, my)
     draw.FilledRect(wx - w_border, wy - w_titlesize - w_border, wx + w_width + w_border, wy)
 
    draw.SetFont(font)
+   local tw, th = draw.GetTextSize(string.format(w_title, tabs[tab]))
+
+--   draw.SetFont(font)
    draw.Color(255, 255, 255, 255)
-   draw.TextShadow(wx + (w_width // 2) - (wtw // 2), wy - (w_titlesize // 2) - (wth // 2), w_title)
+   draw.TextShadow(wx + (w_halfwidth) - (tw//2), wy - w_halftitlesize - (th//2), string.format(w_title, tabs[tab]))
 
    if isinside(wx - w_border, wy - w_titlesize - w_border, w_width + w_border, w_titlesize) and mousedown then
       dragging = true
@@ -171,6 +187,57 @@ local function Slider(mousedown, x, y, width, height, min, value, max, text)
    return nil
 end
 
+local function DrawAimbotTab(left, ltick, right, rtick, mousedown)
+    do --- aimbot toggle
+      local width, height = 120, 20
+      local x, y = 5, 50 --- relative to window's x & y
+      local unformat = "aimbot: %s"
+      local enabled = gb_settings.aimbot.enabled
+      local text = string.format(unformat, enabled and "ON" or "OFF")
+
+      --- if it was clicked, invert the value
+      if Button(left, ltick, x, y, width, height, text) then
+         gb_settings.aimbot.enabled = not enabled
+      end
+   end
+
+   do --- aimbot fov indicator
+      local width, height = 120, 20
+      local x, y = 5, 80
+      local unformat = "indicator: %s"
+      local enabled = gb_settings.aimbot.fov_indicator
+      local text = string.format(unformat, enabled and "ON" or "OFF")
+
+      if Button(left, ltick, x, y, width, height, text) then
+         gb_settings.aimbot.fov_indicator = not gb_settings.aimbot.fov_indicator
+      end
+   end
+
+   do --- aimbot fov
+      local width, height = 120, 20
+      local x, y = 5, 110
+      local unformat = "aim fov: %s"
+      local fov = gb_settings.aimbot.fov
+      local text = string.format(unformat, fov)
+
+      local newvalue = Slider(mousedown, x, y, width, height, 0, fov, 180, text)
+      if newvalue then
+         gb_settings.aimbot.fov = newvalue
+      end
+   end
+
+   do --- aimbot autoshoot
+      local unformatted = "autoshoot: %s"
+      local enabled = gb_settings.aimbot.autoshoot
+      local text = string.format(unformatted, enabled and "on" or "off")
+      local x, y, width, height = 5, 140, 120, 20
+
+      if Button(left, ltick, x, y, width, height, text) then
+         gb_settings.aimbot.autoshoot = not enabled
+      end
+   end
+end
+
 function gui.Draw()
    do
       local state, tick = input.IsButtonPressed(gb_settings.gui.toggle)
@@ -198,42 +265,27 @@ function gui.Draw()
 
    Window(mousedown, mx, my)
 
-   do --- aimbot toggle
-      local width, height = 120, 20
-      local x, y = 10, 10 --- relative to window's x & y
-      local unformat = "aimbot: %s"
-      local enabled = gb_settings.aimbot.enabled
-      local text = string.format(unformat, enabled and "ON" or "OFF")
+   do --- draw tab buttons, so we can change which tab we are in (aimbot, esp, chams, etc)
+      local margin = 5 --- space between the left and right extremes... edges? idk
+      local width = (w_width - 2*margin) / tabnum
+      local height = 25
 
-      --- if it was clicked, invert the value
-      if Button(left, ltick, x, y, width, height, text) then
-         gb_settings.aimbot.enabled = not enabled
+      --- initial x and y values
+      --- they are changed in the for loop (only x)
+      local x, y = 10, 10
+
+      for i = 1, tabnum do
+         local btnx = margin + (i-1) * width
+         if Button(left, ltick, btnx//1, y, width//1, height, tabs[i]) then
+            tab = i
+         end
       end
    end
 
-   do --- aimbot fov indicator
-      local width, height = 120, 20
-      local x, y = 10, 40
-      local unformat = "indicator: %s"
-      local enabled = gb_settings.aimbot.fov_indicator
-      local text = string.format(unformat, enabled and "ON" or "OFF")
-
-      if Button(left, ltick, x, y, width, height, text) then
-         gb_settings.aimbot.fov_indicator = not gb_settings.aimbot.fov_indicator
-      end
-   end
-
-   do --- aimbot fov
-      local width, height = 120, 20
-      local x, y = 10, 70
-      local unformat = "aim fov: %s"
-      local fov = gb_settings.aimbot.fov
-      local text = string.format(unformat, fov)
-
-      local newvalue = Slider(mousedown, x, y, width, height, 0, fov, 180, text)
-      if newvalue then
-         gb_settings.aimbot.fov = newvalue
-      end
+   if tab == 1 then --- tabs[1] = aimbot
+      DrawAimbotTab(left, ltick, right, rtick, mousedown)
+   else
+      print("Somehow you are in a INVALID tab! This is a bug, report it to navet")
    end
 
    oldmx, oldmy = mx, my
