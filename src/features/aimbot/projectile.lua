@@ -1,42 +1,15 @@
 local proj = {}
 
---local projSim = require("src.features.aimbot.simulation.proj")
+local playerSim = require("src.features.aimbot.simulation.player")
 
 local PREFERRED_BONES = { 4, 3, 10, 7, 1 }
 local predicted_pos = nil
 local best_target = nil
 
 local simulated_pos = {}
-local position_samples = {}
-local velocity_samples = {}
-local MAX_PREDICTED_TICKS = 66
-local SAMPLE_COUNT = 16
-
-local MAX_SPEED = {
-	[E_Character.TF2_Demoman] = 280,
-	[E_Character.TF2_Engineer] = 300,
-	[E_Character.TF2_Heavy] = 230,
-	[E_Character.TF2_Medic] = 320,
-	[E_Character.TF2_Pyro] = 300,
-	[E_Character.TF2_Scout] = 400,
-	[E_Character.TF2_Sniper] = 300,
-	[E_Character.TF2_Soldier] = 240,
-	[E_Character.TF2_Spy] = 320,
-}
 
 local function NormalizeVector(vec)
 	return vec / vec:Length()
-end
-
----@param position Vector3
----@return boolean
-local function IsOnGround(position)
-	local function shouldHit(ent)
-		return false
-	end
-
-	local trace = engine.TraceLine(position, position + Vector3(0, 0, -100), MASK_SHOT_HULL, shouldHit)
-	return trace and trace.fraction <= 0.1
 end
 
 ---@param p0 Vector3 -- shooter origin
@@ -81,236 +54,9 @@ end
 ---@param targetPos Vector3
 ---@param speed number
 ---@return number
-local function ComputeTravelTime(shootPos, targetPos, speed)
+local function EstimateTravelTime(shootPos, targetPos, speed)
 	local distance = (targetPos - shootPos):Length()
 	return distance / speed
-end
-
----@param pEntity Entity
----@return Vector3[]
-local function GetPlayerPositionSamples(pEntity)
-	return position_samples[pEntity:GetIndex()]
-end
-
----@param pEntity Entity
----@return Vector3[]
-local function GetPlayerVelocitySamples(pEntity)
-	return velocity_samples[pEntity:GetIndex()]
-end
-
---- ngl im proud of this function
---- this little fella is the goat
----@param pEntity Entity
-local function AddPositionSample(pEntity)
-	local index = pEntity:GetIndex()
-
-	if not position_samples[index] then
-		position_samples[index] = {}
-		velocity_samples[index] = {}
-		velocity_samples[index][1] = pEntity:EstimateAbsVelocity()
-	end
-
-	local current_pos = pEntity:GetAbsOrigin()
-	position_samples[index][#position_samples[index] + 1] = current_pos
-
-	-- calculate velocity from position difference
-	if #position_samples[index] >= 2 then
-		local prev_pos = position_samples[index][#position_samples[index] - 1]
-		local velocity = (current_pos - prev_pos) / globals.TickInterval()
-		velocity_samples[index][#velocity_samples[index] + 1] = velocity
-	end
-
-	-- keep only recent samples
-	if #position_samples[index] > SAMPLE_COUNT then
-		local temp_pos = {}
-		local temp_vel = {}
-		for i = 1, SAMPLE_COUNT do
-			temp_pos[i] = position_samples[index][i + (#position_samples[index] - SAMPLE_COUNT)]
-		end
-		for i = 1, SAMPLE_COUNT - 1 do
-			temp_vel[i] = velocity_samples[index][i + (#velocity_samples[index] - (SAMPLE_COUNT - 1))]
-		end
-		position_samples[index] = temp_pos
-		velocity_samples[index] = temp_vel
-	end
-end
-
-local function AddAllPlayerSample(enemy_team, players)
-	for _, player in pairs(players) do
-		if player:GetTeamNumber() == enemy_team and player:IsAlive() and not player:IsDormant() then
-			AddPositionSample(player)
-		end
-	end
-end
-
----@param pEntity Entity
----@return Vector3 -- smoothed velocity with better air movement handling
-local function GetSmoothedVelocity(pEntity)
-	local vel_samples = GetPlayerVelocitySamples(pEntity)
-	if not vel_samples or #vel_samples < 2 then
-		return pEntity:EstimateAbsVelocity()
-	end
-
-	-- For airborne targets, use more recent samples with exponential weighting
-	local is_airborne = not IsOnGround(pEntity:GetAbsOrigin())
-	local total_weight = 0
-	local weighted_vel = Vector3(0, 0, 0)
-
-	for i = 1, #vel_samples do
-		-- Use exponential weighting for airborne targets, linear for grounded
-		local weight = is_airborne and (2 ^ (i - 1)) or (i / #vel_samples)
-		weighted_vel = weighted_vel + (vel_samples[i] * weight)
-		total_weight = total_weight + weight
-	end
-
-	local smoothed = weighted_vel / total_weight
-
-	-- Clamp extreme velocities to prevent prediction chaos
-	local max_vel = 4000 -- TF2 theoretical max velocity
-	if smoothed:LengthSqr() > max_vel * max_vel then
-		smoothed = NormalizeVector(smoothed) * max_vel
-	end
-
-	return smoothed
-end
-
----
----@param pEntity Entity
----@return number -- smoothed angular velocity in degrees per tick
-local function GetSmoothedAngularVelocity(pEntity)
-	local samples = GetPlayerPositionSamples(pEntity)
-	if not samples or #samples < 2 then
-		return 0
-	end
-
-	local function GetYaw(vec)
-		if vec.x == 0 and vec.y == 0 then
-			return 0
-		end
-		return math.deg(math.atan(vec.y, vec.x))
-	end
-
-	local angular_velocities = {}
-	for i = 1, #samples - 2 do
-		local delta1 = samples[i + 1] - samples[i]
-		local delta2 = samples[i + 2] - samples[i + 1]
-
-		local yaw1 = GetYaw(delta1)
-		local yaw2 = GetYaw(delta2)
-
-		local ang_diff = yaw2 - yaw1
-		-- Normalize angle to [-180, 180]
-		ang_diff = (ang_diff + 180) % 360 - 180
-
-		angular_velocities[#angular_velocities + 1] = ang_diff
-	end
-
-	if #angular_velocities == 0 then
-		return 0
-	end
-
-	-- calculate weighted average
-	local total_weight = 0
-	local weighted_ang_vel = 0
-
-	for i = 1, #angular_velocities do
-		local weight = i / #angular_velocities
-		weighted_ang_vel = weighted_ang_vel + (angular_velocities[i] * weight)
-		total_weight = total_weight + weight
-	end
-
-	return weighted_ang_vel / total_weight
-end
-
----@param pEntity Entity
----@return Vector3[]
-local function SimulatePlayer(pEntity)
-	local smoothed_velocity = GetSmoothedVelocity(pEntity)
-	local angular_velocity = GetSmoothedAngularVelocity(pEntity)
-	local last_pos = pEntity:GetAbsOrigin()
-	local tick_interval = globals.TickInterval()
-	local positions = {}
-
-	local mins, maxs = pEntity:GetMins(), pEntity:GetMaxs()
-
-	---@param ent Entity
-	---@param contentsMask number
-	local function shouldHitEntity(ent, contentsMask)
-		return ent:GetIndex() ~= pEntity:GetIndex()
-	end
-
-	-- apply slight loss in  angular velocity to prevent infinite spinning (there arent many people that use the strategy of spinning like a beyblade to dodge projectiles)
-	local ang_vel_decay = 0.95
-
-	for i = 1, MAX_PREDICTED_TICKS do
-		-- apply angular velocity with decay
-		local yaw = math.rad(angular_velocity)
-		local cos_yaw, sin_yaw = math.cos(yaw), math.sin(yaw)
-		local vx, vy = smoothed_velocity.x, smoothed_velocity.y
-
-		-- 2D rotation on XY plane
-		smoothed_velocity.x = vx * cos_yaw - vy * sin_yaw
-		smoothed_velocity.y = vx * sin_yaw + vy * cos_yaw
-
-		local predicted_pos = last_pos + (smoothed_velocity * tick_interval)
-		local onground = IsOnGround(predicted_pos)
-
-		if not onground then
-			local class = pEntity:GetPropInt("m_iClass")
-			--- max air acceleration is max ground speed * 10 (roughly)
-			if smoothed_velocity.z < (MAX_SPEED[class] * 10) then
-				smoothed_velocity.z = smoothed_velocity.z - (800 * tick_interval) --- apply gravity
-			end
-		else
-			smoothed_velocity.z = 0
-		end
-
-		predicted_pos = last_pos + (smoothed_velocity * tick_interval)
-
-		local trace = engine.TraceHull(last_pos, predicted_pos, mins, maxs, MASK_PLAYERSOLID, shouldHitEntity)
-
-		if trace then
-			if trace.fraction < 1 then
-				-- collision detected
-				local remaining_fraction = 1 - trace.fraction
-				local blocked_velocity = smoothed_velocity * remaining_fraction
-
-				-- slide along the wall
-				-- the component of the velocity perpendicular to the wall's normal should be removed
-				-- and the remaining parallel component retained
-				local dot = blocked_velocity:Dot(trace.plane)
-				smoothed_velocity = (blocked_velocity - (trace.plane * dot)) / remaining_fraction -- Recalculate full velocity component
-
-				-- Move to the collision point
-				last_pos = trace.endpos
-
-				-- Apply a small offset from the wall to prevent immediate re-collision in the next tick
-				last_pos = last_pos + (trace.plane * 0.01) -- Small push off the wall
-
-				-- Add the collision point to positions
-				positions[#positions + 1] = last_pos
-
-				-- If the new velocity is very small, or we hit a corner, stop
-				if smoothed_velocity:LengthSqr() < 1 then -- Arbitrary small value
-					break
-				end
-			else
-				-- no collision, continue with predicted position
-				positions[#positions + 1] = predicted_pos
-				last_pos = predicted_pos
-			end
-		else
-			-- no trace result, this shouldn't happen
-			-- but just in case it does, just continue as if it didnt error
-			positions[#positions + 1] = predicted_pos
-			last_pos = predicted_pos
-		end
-
-		-- add decay to angular velocity
-		angular_velocity = angular_velocity * ang_vel_decay
-	end
-
-	return positions
 end
 
 ---@param val number
@@ -419,87 +165,105 @@ end
 ---@param ent_utils GB_EntUtils
 ---@param utils GB_Utils
 function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils)
-	local enemy_team = plocal:GetTeamNumber() == 2 and 3 or 2
-	AddAllPlayerSample(enemy_team, players)
+	playerSim.RunBackground(players)
 
 	best_target = GetClosestPlayerToFov(plocal, settings, utils, ent_utils, players)
 
 	if not best_target or not best_target.index or not best_target.pos then
 		predicted_pos = nil
+		simulated_pos = {}
 		return false, nil
 	end
 
 	local netchan = clientstate:GetNetChannel()
 	if not netchan then
 		predicted_pos = nil
+		simulated_pos = {}
 		return false, nil
 	end
 
 	local target_ent = entities.GetByIndex(best_target.index)
 	if not target_ent then
 		predicted_pos = nil
+		simulated_pos = {}
 		return false, nil
 	end
 
 	local projectile_info = GetProjectileInfo(weapon)
 	if not projectile_info then
 		predicted_pos = nil
+		simulated_pos = {}
 		return false, nil
 	end
 
-	---
-	local simulated_positions = SimulatePlayer(target_ent)
-	if not simulated_positions or #simulated_positions == 0 then
-		return false, nil
-	end
-
-	simulated_pos = simulated_positions
-
+	local projectile_speed = projectile_info[1]
+	local projectile_grav = projectile_info[2]
+	local effective_grav = client.GetConVar("sv_gravity") * projectile_grav
 	local shootPos = ent_utils.GetShootPosition(plocal)
-	local best_sim_pos = nil
-	local best_time_error = math.huge
 
-	--- returns a Vector3 table of all the positions the weapon's projectile would have until it hit a wall or the ground
-	--local positions = projSim.Run(plocal, weapon)
+	-- Iterative prediction to find the correct intercept point
+	local max_iterations = 10
+	local tolerance = 5.0 -- units
+	local predicted_target_pos = target_ent:GetAbsOrigin()
+	local travel_time = 0.0
 
-	-- Prediction logic - now works for both rocket and gravity projectiles
-	if weapon:GetWeaponProjectileType() == E_ProjectileType.TF_PROJECTILE_ROCKET then
-		-- Direct projectile prediction (rockets, etc.)
-		for tick, sim_pos in ipairs(simulated_positions) do
-			if IsVisible(shootPos, sim_pos, target_ent) then
-				local travel_time = ComputeTravelTime(shootPos, sim_pos, projectile_info[1])
-				local sim_time = tick * globals.TickInterval()
-				local time_error = math.abs(sim_time - travel_time)
+	for i = 1, max_iterations do
+		-- Calculate travel time to predicted position
+		travel_time = EstimateTravelTime(shootPos, predicted_target_pos, projectile_speed)
 
-				if time_error < best_time_error then
-					best_time_error = time_error
-					best_sim_pos = sim_pos
-				end
-			end
+		-- Predict where the target will be at that time
+		local player_positions = playerSim.Run(target_ent, travel_time)
+		if not player_positions or #player_positions == 0 then
+			break
 		end
-	else --- for weapons with gravity
-		local gravity = client.GetConVar("sv_gravity") * projectile_info[2]
 
-		for tick, sim_pos in ipairs(simulated_positions) do
-			if IsVisible(shootPos, sim_pos, target_ent) then
-				-- check if we can solve the ballistic arc to this position
-				local aim_dir = SolveBallisticArc(shootPos, sim_pos, projectile_info[1], gravity)
+		simulated_pos = player_positions
+		local new_predicted_pos = player_positions[#player_positions]
 
-				if aim_dir then
-					local travel_time = ComputeTravelTime(shootPos, sim_pos, projectile_info[1])
-					local sim_time = tick * globals.TickInterval()
-					local time_error = math.abs(sim_time - travel_time)
+		-- Check if we've converged
+		local distance_diff = (new_predicted_pos - predicted_target_pos):Length()
+		if distance_diff < tolerance then
+			predicted_target_pos = new_predicted_pos
+			break
+		end
 
-					if time_error < best_time_error then
-						best_time_error = time_error
-						best_sim_pos = sim_pos
+		predicted_target_pos = new_predicted_pos
+	end
+
+	-- The predicted position is where we think the target will be
+	predicted_pos = predicted_target_pos
+
+	-- Verify line of sight to predicted position
+	if not IsVisible(shootPos, predicted_pos, target_ent) then
+		-- Try to find a visible bone position at the predicted time
+		local player_positions = playerSim.Run(target_ent, travel_time)
+		if player_positions and #player_positions > 0 then
+			local final_player_pos = player_positions[#player_positions]
+
+			-- Check visibility to different bone positions
+			for _, bone_id in ipairs(PREFERRED_BONES) do
+				local bone_pos = ent_utils.GetBones(target_ent)[bone_id]
+				if bone_pos then
+					-- Offset the bone position by the predicted movement
+					local movement_offset = final_player_pos - target_ent:GetAbsOrigin()
+					local predicted_bone_pos = bone_pos + movement_offset
+
+					if IsVisible(shootPos, predicted_bone_pos, target_ent) then
+						predicted_pos = predicted_bone_pos
+						break
 					end
 				end
 			end
 		end
 	end
 
-	predicted_pos = best_sim_pos
+	return true, best_target.index
+end
+
+local function DirectionToAngles(direction)
+	local pitch = math.asin(-direction.z) * (180 / math.pi)
+	local yaw = math.atan(direction.y, direction.x) * (180 / math.pi)
+	return Vector3(pitch, yaw, 0) -- assuming Vector3 constructor for angles
 end
 
 ---@param utils GB_Utils
@@ -522,20 +286,21 @@ function proj.Run(utils, wep_utils, ent_utils, plocal, weapon, cmd)
 			return false, nil
 		end
 
-		-- aim angle to direct line of sight
-		local angle = utils.math.PositionAngles(shootpos, predicted_pos)
-
-		if weapon:GetWeaponProjectileType() ~= E_ProjectileType.TF_PROJECTILE_ROCKET then
+		-- For projectiles with gravity, use ballistic arc calculation
+		local angle = nil
+		if projectile_info[2] > 0 then -- has gravity
 			local gravity = client.GetConVar("sv_gravity") * projectile_info[2]
+
 			local aim_dir = SolveBallisticArc(shootpos, predicted_pos, projectile_info[1], gravity)
 
 			if aim_dir then
-				local direction_target = shootpos + aim_dir * 1000 -- scale to get a distant point
-				angle = utils.math.PositionAngles(shootpos, direction_target)
-			else
-				-- if it somehow gives a nil value, just do this instead
-				angle = utils.math.PositionAngles(shootpos, predicted_pos)
+				angle = DirectionToAngles(aim_dir)
 			end
+		end
+
+		-- Fallback to direct aim if ballistic calculation fails or no gravity
+		if not angle then
+			angle = utils.math.PositionAngles(shootpos, predicted_pos)
 		end
 
 		if not angle then
@@ -560,45 +325,34 @@ function proj.Draw()
 	draw.Color(255, 255, 255, 255)
 
 	local predicted_positions = simulated_pos
-	if not predicted_positions or #predicted_positions < 2 then
-		return
-	end
+	if predicted_positions and #predicted_positions >= 2 then
+		local max_positions = #predicted_positions
+		local last_pos = nil
 
-	local max_positions = #predicted_positions
+		for i, pos in pairs(predicted_positions) do
+			if last_pos then
+				local screen_current = client.WorldToScreen(pos)
+				local screen_last = client.WorldToScreen(last_pos)
 
-	local last_pos = nil
-	for i, pos in pairs(predicted_positions) do
-		if last_pos then
-			local screen_current = client.WorldToScreen(pos)
-			local screen_last = client.WorldToScreen(last_pos)
+				if screen_current and screen_last then
+					-- sick ass fade
+					local alpha = math.max(50, 255 - (i * 5))
+					draw.Color(255, 255, 255, alpha)
+					draw.Line(screen_last[1], screen_last[2], screen_current[1], screen_current[2])
 
-			if screen_current and screen_last then
-				-- sick ass fade
-				local alpha = math.max(50, 255 - (i * 5))
-				draw.Color(255, 255, 255, alpha)
-				draw.Line(screen_last[1], screen_last[2], screen_current[1], screen_current[2])
-
-				--- last position
-				if i == max_positions then
-					local w, h = 10, 10
-					draw.FilledRect(
-						screen_current[1] - w,
-						screen_current[2] - h,
-						screen_current[1] + w,
-						screen_current[2] + h
-					)
+					--- last position
+					if i == max_positions then
+						local w, h = 10, 10
+						draw.FilledRect(
+							screen_current[1] - w,
+							screen_current[2] - h,
+							screen_current[1] + w,
+							screen_current[2] + h
+						)
+					end
 				end
 			end
-		end
-
-		last_pos = pos
-	end
-
-	if predicted_pos then
-		local screen = client.WorldToScreen(predicted_pos)
-		if screen ~= nil then
-			draw.Color(255, 0, 0, 255)
-			draw.FilledRect(screen[1] - 10, screen[2] - 10, screen[1] + 10, screen[2] + 10)
+			last_pos = pos
 		end
 	end
 end
