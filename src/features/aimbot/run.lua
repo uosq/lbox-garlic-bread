@@ -51,7 +51,7 @@ function aim.CreateMove(settings, utils, wep_utils, ent_utils, plocal, cmd)
 	if pweapon:GetWeaponProjectileType() == E_ProjectileType.TF_PROJECTILE_BULLET then
 		return hitscan.Run(settings, utils, wep_utils, ent_utils, plocal, cmd, players)
 	elseif not pweapon:IsMeleeWeapon() then
-		return proj.Run(utils, wep_utils, ent_utils, plocal, pweapon, cmd)
+		return proj.Run(utils, wep_utils, plocal, pweapon, cmd)
 	end
 
 	return false, nil
