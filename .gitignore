@@ -1,3 +1,3 @@
-/.luarc.json
-build/*
-build
+\.luarc.json
+\.gitignore
+\build/
