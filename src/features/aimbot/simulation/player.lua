@@ -3,7 +3,7 @@ local sim = {}
 local position_samples = {}
 local velocity_samples = {}
 local MAX_ALLOWED_SPEED = 2000 -- HU/sec
-local SAMPLE_COUNT = 8
+local SAMPLE_COUNT = 32
 
 --- ngl im proud of this function
 --- this little fella is the goat
@@ -44,7 +44,7 @@ local function AddPositionSample(pEntity)
 		end
 	end
 
-	-- Trim samples
+	-- trim samples
 	if #samples > SAMPLE_COUNT then
 		for i = 1, #samples - SAMPLE_COUNT do
 			table.remove(samples, 1)
@@ -62,17 +62,16 @@ end
 ---@param mins Vector3
 ---@param maxs Vector3
 ---@param pTarget Entity
+---@param step_height number
 ---@return boolean, Vector3|nil
-local function IsOnGround(position, mins, maxs, pTarget)
+local function IsOnGround(position, mins, maxs, pTarget, step_height)
 	local function shouldHit(ent)
 		return ent:GetIndex() ~= pTarget:GetIndex()
 	end
 
-	-- Source engine step height is typically 18 units
-	local step_height = 18
 	local ground_check_distance = 2
 
-	-- First, trace down from the bottom of the bounding box
+	-- first, trace down from the bottom of the bounding box
 	local bbox_bottom = position + Vector3(0, 0, mins.z)
 	local trace_start = bbox_bottom
 	local trace_end = bbox_bottom + Vector3(0, 0, -ground_check_distance)
@@ -81,19 +80,19 @@ local function IsOnGround(position, mins, maxs, pTarget)
 		engine.TraceHull(trace_start, trace_end, Vector3(0, 0, 0), Vector3(0, 0, 0), MASK_SHOT_HULL, shouldHit)
 
 	if trace and trace.fraction < 1 then
-		-- Check if it's a walkable surface
+		-- check if it's a walkable surface
 		local surface_normal = trace.plane
 		local ground_angle = math.deg(math.acos(surface_normal:Dot(Vector3(0, 0, 1))))
 
 		if ground_angle <= 45 then
-			-- Check if we can actually step on this surface
+			-- check if we can actually step on this surface
 			local hit_point = trace_start + (trace_end - trace_start) * trace.fraction
 			local step_test_start = hit_point + Vector3(0, 0, step_height)
 			local step_test_end = position
 
 			local step_trace = engine.TraceHull(step_test_start, step_test_end, mins, maxs, MASK_SHOT_HULL, shouldHit)
 
-			-- If we can fit in the space above the ground, we're grounded
+			-- ff we can fit in the space above the ground, we're grounded
 			if not step_trace or step_trace.fraction >= 1 then
 				return true, surface_normal
 			end
@@ -108,7 +107,7 @@ end
 local function IsPlayerOnGround(pEntity)
 	local mins, maxs = pEntity:GetMins(), pEntity:GetMaxs()
 	local origin = pEntity:GetAbsOrigin()
-	local grounded = IsOnGround(origin, mins, maxs, pEntity)
+	local grounded = IsOnGround(origin, mins, maxs, pEntity, pEntity:GetPropFloat("m_flStepSize"))
 	return grounded == true
 end
 
@@ -188,87 +187,92 @@ function sim.RunBackground(players)
 
 	for _, player in pairs(players) do
 		--- no need to predict our own team
-		if player:GetTeamNumber() == enemy_team and player:IsAlive() and not player:IsDormant() then
+		if player:GetTeamNumber() == enemy_team and player:IsAlive() == true and player:IsDormant() == false then
 			AddPositionSample(player)
 		end
 	end
 end
 
+---@param stepSize number
 ---@param pTarget Entity The target
----@param shootPos Vector3
 ---@param time number The time in seconds we want to predict
-function sim.Run(shootPos, pTarget, time)
+function sim.Run(stepSize, pTarget, time)
 	local smoothed_velocity = GetSmoothedVelocity(pTarget)
 	local angular_velocity = GetSmoothedAngularVelocity(pTarget)
 	local last_pos = pTarget:GetAbsOrigin()
 
 	local tick_interval = globals.TickInterval()
+	local gravity = client.GetConVar("sv_gravity")
+	local gravity_step = gravity * tick_interval
+	local down_vector = Vector3(0, 0, -stepSize)
+
 	local positions = {}
-
 	local mins, maxs = pTarget:GetMins(), pTarget:GetMaxs()
-	local stepHeight = 25
 
-	---@param ent Entity
-	---@param contentsMask number
 	local function shouldHitEntity(ent, contentsMask)
 		return ent:GetIndex() ~= pTarget:GetIndex()
 	end
 
-	for i = 1, (time * 67) // 1 do
-		-- Apply angular velocity
+	local maxTicks = (time * 67) // 1
+	local was_onground = false
+
+	for i = 1, maxTicks do
+		-- apply angular velocity
 		local yaw = math.rad(angular_velocity)
 		local cos_yaw, sin_yaw = math.cos(yaw), math.sin(yaw)
 		local vx, vy = smoothed_velocity.x, smoothed_velocity.y
 		smoothed_velocity.x = vx * cos_yaw - vy * sin_yaw
 		smoothed_velocity.y = vx * sin_yaw + vy * cos_yaw
 
-		-- Ground check
-		local ground_trace = engine.TraceLine(last_pos, last_pos + Vector3(0, 0, -10), MASK_SHOT_HULL, shouldHitEntity)
-		local onground = ground_trace and ground_trace.fraction < 1.0
-
-		-- Gravity
-		if not onground then
-			smoothed_velocity.z = smoothed_velocity.z - (800 * tick_interval)
-		elseif smoothed_velocity.z < 0 then
-			smoothed_velocity.z = 0
-		end
-
 		local move_delta = smoothed_velocity * tick_interval
 		local next_pos = last_pos + move_delta
 
-		-- collision trace
 		local trace = engine.TraceHull(last_pos, next_pos, mins, maxs, MASK_PLAYERSOLID, shouldHitEntity)
 
 		if trace.fraction < 1.0 then
-			-- try stair step
-			local step_up = last_pos + Vector3(0, 0, stepHeight)
-			local step_up_trace = engine.TraceHull(last_pos, step_up, mins, maxs, MASK_PLAYERSOLID, shouldHitEntity)
+			-- only try stair step if not airborne (falling fast)
+			if smoothed_velocity.z >= -50 then
+				local step_up = last_pos + Vector3(0, 0, stepSize)
+				local step_up_trace = engine.TraceHull(last_pos, step_up, mins, maxs, MASK_PLAYERSOLID, shouldHitEntity)
 
-			if step_up_trace.fraction == 1.0 then
-				local step_forward = step_up + move_delta
-				local step_forward_trace =
-					engine.TraceHull(step_up, step_forward, mins, maxs, MASK_PLAYERSOLID, shouldHitEntity)
+				if step_up_trace.fraction == 1.0 then
+					local step_forward = step_up + move_delta
+					local step_forward_trace =
+						engine.TraceHull(step_up, step_forward, mins, maxs, MASK_PLAYERSOLID, shouldHitEntity)
 
-				if step_forward_trace.fraction > 0 then
-					-- successful stair step
-					next_pos = step_forward_trace.endpos
-					last_pos = next_pos
-					positions[#positions + 1] = last_pos
-					goto continue
+					if step_forward_trace.fraction > 0 then
+						-- successful stair step
+						next_pos = step_forward_trace.endpos
+						last_pos = next_pos
+						positions[#positions + 1] = last_pos
+						goto continue
+					end
 				end
 			end
 
-			-- Failed to stair step: slide
+			-- failed stair step, do slide
 			next_pos = trace.endpos
 			local normal = trace.plane
 			local dot = smoothed_velocity:Dot(normal)
 			smoothed_velocity = smoothed_velocity - normal * dot
-		end
-
-		trace = engine.TraceLine(shootPos, next_pos, MASK_SHOT_HULL, shouldHitEntity)
-		if trace and trace.fraction == 1 then
+		else
 			last_pos = next_pos
 			positions[#positions + 1] = last_pos
+		end
+
+		-- only check ground if velocity.z is down
+		if smoothed_velocity.z <= 0.1 then
+			local ground_trace = engine.TraceLine(next_pos, next_pos + down_vector, MASK_PLAYERSOLID, shouldHitEntity)
+			was_onground = ground_trace and ground_trace.fraction < 1.0
+		else
+			was_onground = false
+		end
+
+		-- gravity
+		if not was_onground then
+			smoothed_velocity.z = smoothed_velocity.z - gravity_step
+		elseif smoothed_velocity.z < 0 then
+			smoothed_velocity.z = 0
 		end
 
 		::continue::

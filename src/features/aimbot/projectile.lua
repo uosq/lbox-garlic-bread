@@ -125,7 +125,6 @@ local function GetProjectileInfo(weapon)
 	return projInfo[defIndex] or projInfoID[id] or { 1100, 0.2 }
 end
 
--- Fixed GetClosestPlayerToFov function
 ---@param players table<integer, Entity>
 ---@param plocal Entity
 ---@param utils GB_Utils
@@ -135,7 +134,7 @@ end
 local function GetClosestPlayerToFov(plocal, settings, utils, ent_utils, players)
 	local info = {
 		angle = nil,
-		fov = settings.aimbot.fov, -- Start with infinite FOV instead of settings.aimbot.fov
+		fov = settings.aimbot.fov,
 		index = nil,
 		center = nil,
 		pos = nil,
@@ -151,12 +150,12 @@ local function GetClosestPlayerToFov(plocal, settings, utils, ent_utils, players
 			and player:GetTeamNumber() ~= plocal:GetTeamNumber()
 			and player:InCond(E_TFCOND.TFCond_Cloaked) == false
 		then
-			-- Get the visible body part info for this player
+			-- get the visible body part info for this player
 			local player_info = ent_utils.FindVisibleBodyPart(player, shootpos, utils, viewangle, PREFERRED_BONES)
 
-			-- Check if this player is visible and within the configured FOV limit
+			-- check if this player is visible and within the configured FOV limit
 			if player_info and player_info.fov and player_info.fov < settings.aimbot.fov then
-				-- Check if this player is closer to crosshair than our current best
+				-- check if this player is closer to crosshair than our current best
 				if player_info.fov < info.fov then
 					info = player_info
 					info.index = player:GetIndex()
@@ -168,8 +167,7 @@ local function GetClosestPlayerToFov(plocal, settings, utils, ent_utils, players
 	return info
 end
 
--- Modified RunBackground function with better target switching
-function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils)
+function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils, time)
 	if plocal:IsAlive() == false then
 		return false, nil
 	end
@@ -182,7 +180,11 @@ function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils)
 		return false, nil
 	end
 
+	local start = os.clock()
+
 	playerSim.RunBackground(players)
+
+	time.playerSimBackground = os.clock() - start
 
 	local projectile_info = GetProjectileInfo(weapon)
 	if not projectile_info then
@@ -192,11 +194,13 @@ function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils)
 		return false, nil
 	end
 
-	-- Always re-evaluate targets instead of sticking to the old one
-	-- This ensures we always pick the best available target
+	start = os.clock()
+
 	local new_target = GetClosestPlayerToFov(plocal, settings, utils, ent_utils, players)
 
 	best_target = new_target
+
+	time.closest_player_fov = os.clock() - start
 
 	if not best_target or not best_target.index or not best_target.pos then
 		predicted_pos = nil
@@ -216,16 +220,35 @@ function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils)
 	local shootPos = ent_utils.GetShootPosition(plocal)
 
 	local max_iterations = 10
-	local tolerance = 5.0 -- units
+	local tolerance = 5.0 -- HU
 	local predicted_target_pos = target_ent:GetAbsOrigin()
 	local travel_time = 0.0
+	local stepSize = plocal:GetPropFloat("localdata", "m_flStepSize") or 18 -- i think 18 is the default, not sure
+
+	start = os.clock()
 
 	for i = 1, max_iterations do
 		-- calculate travel time to predicted position
 		travel_time = EstimateTravelTime(shootPos, predicted_target_pos, projectile_speed)
 
+		local charge_time = 0.0
+		if weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_COMPOUND_BOW then
+			--charge_time = math.min(globals.CurTime() - weapon:GetChargeBeginTime(), 1.0)
+			charge_time = globals.CurTime() - weapon:GetChargeBeginTime()
+			if charge_time > 1 then
+				charge_time = 0
+			end
+		elseif weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_PIPEBOMBLAUNCHER then
+			charge_time = globals.CurTime() - weapon:GetChargeBeginTime()
+			if charge_time > 4.0 then
+				charge_time = 0
+			end
+		end
+
+		local total_time = travel_time + charge_time
+
 		-- predict where the target will be at that time
-		local player_positions = playerSim.Run(shootPos, target_ent, travel_time)
+		local player_positions = playerSim.Run(stepSize, target_ent, total_time)
 		if not player_positions or #player_positions == 0 then
 			break
 		end
@@ -243,13 +266,16 @@ function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils)
 		predicted_target_pos = new_predicted_pos
 	end
 
+	time.proj_iterations = os.clock() - start
+
 	-- the predicted position is where we think the target will be
 	predicted_pos = predicted_target_pos
 
+	-- this is very expensive, think of a better way of doing it damn it!
 	-- is it not visible?
-	if not IsVisible(shootPos, predicted_pos, target_ent) then
+	--[[if not IsVisible(shootPos, predicted_pos, target_ent) then
 		-- try to find a visible bone position at the predicted time
-		local player_positions = playerSim.Run(shootPos, target_ent, travel_time)
+		local player_positions = playerSim.Run(stepSize, shootPos, target_ent, travel_time)
 		if player_positions and #player_positions > 0 then
 			local final_player_pos = player_positions[#player_positions]
 
@@ -269,7 +295,7 @@ function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils)
 				end
 			end
 		end
-	end
+	end]]
 
 	return true, best_target.index
 end
@@ -289,6 +315,11 @@ end
 ---@return boolean, integer?
 function proj.Run(utils, wep_utils, ent_utils, plocal, weapon, cmd)
 	if best_target and best_target.index and predicted_pos and wep_utils.CanShoot() then
+		local projectile_info = GetProjectileInfo(weapon)
+		if not projectile_info then
+			return false, nil
+		end
+
 		local shootpos = ent_utils.GetShootPosition(plocal)
 
 		local trace = engine.TraceLine(shootpos, predicted_pos, MASK_SHOT_HULL, function()
@@ -296,11 +327,6 @@ function proj.Run(utils, wep_utils, ent_utils, plocal, weapon, cmd)
 		end)
 
 		if trace and trace.fraction < 1 then
-			return false, nil
-		end
-
-		local projectile_info = GetProjectileInfo(weapon)
-		if not projectile_info then
 			return false, nil
 		end
 
@@ -326,6 +352,13 @@ function proj.Run(utils, wep_utils, ent_utils, plocal, weapon, cmd)
 
 		cmd:SetViewAngles(angle:Unpack())
 		cmd.buttons = cmd.buttons | IN_ATTACK
+
+		local charge
+		charge = weapon:GetPropFloat("m_flChargeBeginTime") or weapon:GetPropFloat("m_flDetonateTime")
+		if charge and charge > 0.0 then
+			cmd.buttons = cmd.buttons & ~IN_ATTACK
+		end
+
 		cmd:SetSendPacket(false)
 
 		local target_index = best_target.index
