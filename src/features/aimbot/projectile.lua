@@ -167,25 +167,8 @@ end
 ---@param ent_utils GB_EntUtils
 ---@param utils GB_Utils
 function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils)
-	playerSim.RunBackground(players)
-
-	best_target = GetClosestPlayerToFov(plocal, settings, utils, ent_utils, players)
-
-	if not best_target or not best_target.index or not best_target.pos then
-		predicted_pos = nil
-		simulated_pos = {}
-		return false, nil
-	end
-
 	local netchan = clientstate:GetNetChannel()
 	if not netchan then
-		predicted_pos = nil
-		simulated_pos = {}
-		return false, nil
-	end
-
-	local target_ent = entities.GetByIndex(best_target.index)
-	if not target_ent then
 		predicted_pos = nil
 		simulated_pos = {}
 		return false, nil
@@ -198,9 +181,23 @@ function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils)
 		return false, nil
 	end
 
+	playerSim.RunBackground(players)
+	best_target = GetClosestPlayerToFov(plocal, settings, utils, ent_utils, players)
+
+	if not best_target or not best_target.index or not best_target.pos then
+		predicted_pos = nil
+		simulated_pos = {}
+		return false, nil
+	end
+
+	local target_ent = entities.GetByIndex(best_target.index)
+	if not target_ent then
+		predicted_pos = nil
+		simulated_pos = {}
+		return false, nil
+	end
+
 	local projectile_speed = projectile_info[1]
-	--local projectile_grav = projectile_info[2]
-	--local effective_grav = client.GetConVar("sv_gravity") * projectile_grav
 	local shootPos = ent_utils.GetShootPosition(plocal)
 
 	local max_iterations = 10
@@ -277,11 +274,6 @@ end
 ---@return boolean, integer?
 function proj.Run(utils, wep_utils, ent_utils, plocal, weapon, cmd)
 	if best_target and best_target.index and predicted_pos and wep_utils.CanShoot() then
-		local target_ent = entities.GetByIndex(best_target.index)
-		if not target_ent then
-			return false, nil
-		end
-
 		local shootpos = ent_utils.GetShootPosition(plocal)
 		local projectile_info = GetProjectileInfo(weapon)
 		if not projectile_info then
@@ -292,7 +284,6 @@ function proj.Run(utils, wep_utils, ent_utils, plocal, weapon, cmd)
 		local angle = nil
 		if projectile_info[2] > 0 then -- has gravity
 			local gravity = client.GetConVar("sv_gravity") * projectile_info[2]
-
 			local aim_dir = SolveBallisticArc(shootpos, predicted_pos, projectile_info[1], gravity)
 
 			if aim_dir then
@@ -326,12 +317,11 @@ function proj.Draw()
 
 	draw.Color(255, 255, 255, 255)
 
-	local predicted_positions = simulated_pos
-	if predicted_positions and #predicted_positions >= 2 then
-		local max_positions = #predicted_positions
+	if simulated_pos and #simulated_pos >= 2 then
+		local max_positions = #simulated_pos
 		local last_pos = nil
 
-		for i, pos in pairs(predicted_positions) do
+		for i, pos in pairs(simulated_pos) do
 			if last_pos then
 				local screen_current = client.WorldToScreen(pos)
 				local screen_last = client.WorldToScreen(last_pos)

@@ -1,9 +1,7 @@
 local sim = {}
 
-local simulated_pos = {}
 local position_samples = {}
 local velocity_samples = {}
-local MAX_PREDICTED_TICKS = 66
 local SAMPLE_COUNT = 16
 
 ---@param pEntity Entity
@@ -228,7 +226,7 @@ function sim.Run(pTarget, time)
 				positions[#positions + 1] = last_pos
 
 				-- If velocity is nearly zero, stop simulation
-				if smoothed_velocity:LengthSqr() < 1 then
+				if smoothed_velocity:Length() < 1 then
 					break
 				end
 			else
