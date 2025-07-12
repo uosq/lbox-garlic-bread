@@ -66,7 +66,7 @@ local function clamp(val, min, max)
 	return math.max(min, math.min(val, max))
 end
 
---- wtf is this? whyy the fuck is it like this
+--- wtf is this? whyy the hell is it like this
 local function RemapValClamped(val, A, B, C, D)
 	if A == B then
 		return val >= B and D or C
@@ -78,6 +78,8 @@ local function RemapValClamped(val, A, B, C, D)
 	return C + (D - C) * cVal
 end
 
+--- this is definitely not mine
+--- i stole... borrowed this from Terminator's PAimbot
 ---@param weapon Entity
 local function GetProjectileInfo(weapon)
 	-- Projectile info by definition index
@@ -197,54 +199,54 @@ function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils)
 	end
 
 	local projectile_speed = projectile_info[1]
-	local projectile_grav = projectile_info[2]
-	local effective_grav = client.GetConVar("sv_gravity") * projectile_grav
+	--local projectile_grav = projectile_info[2]
+	--local effective_grav = client.GetConVar("sv_gravity") * projectile_grav
 	local shootPos = ent_utils.GetShootPosition(plocal)
 
-	-- Iterative prediction to find the correct intercept point
 	local max_iterations = 10
 	local tolerance = 5.0 -- units
 	local predicted_target_pos = target_ent:GetAbsOrigin()
 	local travel_time = 0.0
 
 	for i = 1, max_iterations do
-		-- Calculate travel time to predicted position
+		-- calculate travel time to predicted position
 		travel_time = EstimateTravelTime(shootPos, predicted_target_pos, projectile_speed)
 
-		-- Predict where the target will be at that time
+		-- predict where the target will be at that time
 		local player_positions = playerSim.Run(target_ent, travel_time)
 		if not player_positions or #player_positions == 0 then
 			break
 		end
 
-		simulated_pos = player_positions
 		local new_predicted_pos = player_positions[#player_positions]
 
-		-- Check if we've converged
+		-- check if we've converged
 		local distance_diff = (new_predicted_pos - predicted_target_pos):Length()
 		if distance_diff < tolerance then
 			predicted_target_pos = new_predicted_pos
 			break
 		end
 
+		simulated_pos = player_positions
 		predicted_target_pos = new_predicted_pos
 	end
 
-	-- The predicted position is where we think the target will be
+	-- the predicted position is where we think the target will be
 	predicted_pos = predicted_target_pos
 
-	-- Verify line of sight to predicted position
+	-- is it not visible?
 	if not IsVisible(shootPos, predicted_pos, target_ent) then
-		-- Try to find a visible bone position at the predicted time
+		-- try to find a visible bone position at the predicted time
 		local player_positions = playerSim.Run(target_ent, travel_time)
 		if player_positions and #player_positions > 0 then
 			local final_player_pos = player_positions[#player_positions]
 
-			-- Check visibility to different bone positions
+			-- check visibility to different bone positions
 			for _, bone_id in ipairs(PREFERRED_BONES) do
 				local bone_pos = ent_utils.GetBones(target_ent)[bone_id]
+
 				if bone_pos then
-					-- Offset the bone position by the predicted movement
+					-- offset the bone position by the predicted movement
 					local movement_offset = final_player_pos - target_ent:GetAbsOrigin()
 					local predicted_bone_pos = bone_pos + movement_offset
 
@@ -263,7 +265,7 @@ end
 local function DirectionToAngles(direction)
 	local pitch = math.asin(-direction.z) * (180 / math.pi)
 	local yaw = math.atan(direction.y, direction.x) * (180 / math.pi)
-	return Vector3(pitch, yaw, 0) -- assuming Vector3 constructor for angles
+	return Vector3(pitch, yaw, 0)
 end
 
 ---@param utils GB_Utils
@@ -286,7 +288,7 @@ function proj.Run(utils, wep_utils, ent_utils, plocal, weapon, cmd)
 			return false, nil
 		end
 
-		-- For projectiles with gravity, use ballistic arc calculation
+		-- for projectiles with gravity, use ballistic arc calculation
 		local angle = nil
 		if projectile_info[2] > 0 then -- has gravity
 			local gravity = client.GetConVar("sv_gravity") * projectile_info[2]
@@ -298,7 +300,7 @@ function proj.Run(utils, wep_utils, ent_utils, plocal, weapon, cmd)
 			end
 		end
 
-		-- Fallback to direct aim if ballistic calculation fails or no gravity
+		-- fallback to direct aim if ballistic calculation fails or no gravity
 		if not angle then
 			angle = utils.math.PositionAngles(shootpos, predicted_pos)
 		end
