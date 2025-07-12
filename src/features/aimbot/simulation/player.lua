@@ -2,143 +2,176 @@ local sim = {}
 
 local position_samples = {}
 local velocity_samples = {}
-local SAMPLE_COUNT = 16
-
----@param pEntity Entity
----@return Vector3[]
-local function GetPlayerPositionSamples(pEntity)
-	return position_samples[pEntity:GetIndex()]
-end
-
----@param pEntity Entity
----@return Vector3[]
-local function GetPlayerVelocitySamples(pEntity)
-	return velocity_samples[pEntity:GetIndex()]
-end
+local MAX_ALLOWED_SPEED = 2000 -- HU/sec
+local SAMPLE_COUNT = 8
 
 --- ngl im proud of this function
 --- this little fella is the goat
+
+---@class Sample
+---@field pos Vector3
+---@field time number
+
 ---@param pEntity Entity
 local function AddPositionSample(pEntity)
 	local index = pEntity:GetIndex()
 
 	if not position_samples[index] then
+		---@type Sample[]
 		position_samples[index] = {}
+		---@type Vector3[]
 		velocity_samples[index] = {}
 	end
 
+	local current_time = globals.CurTime()
 	local current_pos = pEntity:GetAbsOrigin()
-	position_samples[index][#position_samples[index] + 1] = current_pos
 
-	-- calculate velocity from position difference
-	if #position_samples[index] >= 2 then
-		local prev_pos = position_samples[index][#position_samples[index] - 1]
-		local velocity = (current_pos - prev_pos) / globals.TickInterval()
-		velocity_samples[index][#velocity_samples[index] + 1] = velocity
-	end
+	local sample = { pos = current_pos, time = current_time }
+	local samples = position_samples[index]
+	samples[#samples + 1] = sample
 
-	-- keep only recent samples
-	if #position_samples[index] > SAMPLE_COUNT then
-		local temp_pos = {}
-		local temp_vel = {}
-		for i = 1, SAMPLE_COUNT do
-			temp_pos[i] = position_samples[index][i + (#position_samples[index] - SAMPLE_COUNT)]
+	-- Calculate velocity from last sample
+	if #samples >= 2 then
+		local prev = samples[#samples - 1]
+		local dt = current_time - prev.time
+		if dt > 0 then
+			local vel = (current_pos - prev.pos) / dt
+
+			-- reject outlier velocities
+			if vel:Length() <= MAX_ALLOWED_SPEED then
+				velocity_samples[index][#velocity_samples[index] + 1] = vel
+			end
 		end
-		for i = 1, SAMPLE_COUNT - 1 do
-			temp_vel[i] = velocity_samples[index][i + (#velocity_samples[index] - (SAMPLE_COUNT - 1))]
+	end
+
+	-- Trim samples
+	if #samples > SAMPLE_COUNT then
+		for i = 1, #samples - SAMPLE_COUNT do
+			table.remove(samples, 1)
 		end
-		position_samples[index] = temp_pos
-		velocity_samples[index] = temp_vel
-	end
-end
-
----@param pEntity Entity
----@return Vector3 -- smoothed velocity
-local function GetSmoothedVelocity(pEntity)
-	local vel_samples = GetPlayerVelocitySamples(pEntity)
-	if not vel_samples or #vel_samples < 2 then
-		return pEntity:EstimateAbsVelocity()
 	end
 
-	-- weighted average with more recent samples having higher weight
-	local total_weight = 0
-	local weighted_vel = Vector3(0, 0, 0)
-
-	for i = 1, #vel_samples do
-		local weight = i / #vel_samples -- linear weighting
-		weighted_vel = weighted_vel + (vel_samples[i] * weight)
-		total_weight = total_weight + weight
-	end
-
-	return weighted_vel / total_weight
-end
-
----
----@param pEntity Entity
----@return number -- smoothed angular velocity in degrees per tick
-local function GetSmoothedAngularVelocity(pEntity)
-	local samples = GetPlayerPositionSamples(pEntity)
-	if not samples or #samples < 4 then
-		return 0
-	end
-
-	local function GetYaw(vec)
-		if vec.x == 0 and vec.y == 0 then
-			return 0
+	if #velocity_samples[index] > SAMPLE_COUNT - 1 then
+		for i = 1, #velocity_samples[index] - (SAMPLE_COUNT - 1) do
+			table.remove(velocity_samples[index], 1)
 		end
-		return math.deg(math.atan(vec.y, vec.x))
 	end
-
-	local angular_velocities = {}
-	for i = 1, #samples - 2 do
-		local delta1 = samples[i + 1] - samples[i]
-		local delta2 = samples[i + 2] - samples[i + 1]
-
-		local yaw1 = GetYaw(delta1)
-		local yaw2 = GetYaw(delta2)
-
-		local ang_diff = yaw2 - yaw1
-		-- Normalize angle to [-180, 180]
-		ang_diff = (ang_diff + 180) % 360 - 180
-
-		angular_velocities[#angular_velocities + 1] = ang_diff
-	end
-
-	if #angular_velocities == 0 then
-		return 0
-	end
-
-	-- calculate weighted average
-	local total_weight = 0
-	local weighted_ang_vel = 0
-
-	for i = 1, #angular_velocities do
-		local weight = i / #angular_velocities
-		weighted_ang_vel = weighted_ang_vel + (angular_velocities[i] * weight)
-		total_weight = total_weight + weight
-	end
-
-	return weighted_ang_vel / total_weight
 end
 
 ---@param position Vector3
 ---@param mins Vector3
 ---@param maxs Vector3
----@return boolean
-local function IsOnGround(position, mins, maxs)
+---@param pTarget Entity
+---@return boolean, Vector3|nil
+local function IsOnGround(position, mins, maxs, pTarget)
 	local function shouldHit(ent)
-		return false
+		return ent:GetIndex() ~= pTarget:GetIndex()
 	end
 
-	-- Use hull trace instead of line trace for better accuracy
-	-- Trace from current position down by a small amount (2 units)
-	local trace_start = position
-	local trace_end = position + Vector3(0, 0, -2)
+	-- Source engine step height is typically 18 units
+	local step_height = 18
+	local ground_check_distance = 2
 
-	local trace = engine.TraceHull(trace_start, trace_end, mins, maxs, MASK_SHOT_HULL, shouldHit)
+	-- First, trace down from the bottom of the bounding box
+	local bbox_bottom = position + Vector3(0, 0, mins.z)
+	local trace_start = bbox_bottom
+	local trace_end = bbox_bottom + Vector3(0, 0, -ground_check_distance)
 
-	-- Much stricter ground check - only consider grounded if we hit something very close
-	return trace and trace.fraction < 0.9
+	local trace =
+		engine.TraceHull(trace_start, trace_end, Vector3(0, 0, 0), Vector3(0, 0, 0), MASK_SHOT_HULL, shouldHit)
+
+	if trace and trace.fraction < 1 then
+		-- Check if it's a walkable surface
+		local surface_normal = trace.plane
+		local ground_angle = math.deg(math.acos(surface_normal:Dot(Vector3(0, 0, 1))))
+
+		if ground_angle <= 45 then
+			-- Check if we can actually step on this surface
+			local hit_point = trace_start + (trace_end - trace_start) * trace.fraction
+			local step_test_start = hit_point + Vector3(0, 0, step_height)
+			local step_test_end = position
+
+			local step_trace = engine.TraceHull(step_test_start, step_test_end, mins, maxs, MASK_SHOT_HULL, shouldHit)
+
+			-- If we can fit in the space above the ground, we're grounded
+			if not step_trace or step_trace.fraction >= 1 then
+				return true, surface_normal
+			end
+		end
+	end
+
+	return false, nil
+end
+
+---@param pEntity Entity
+---@return boolean
+local function IsPlayerOnGround(pEntity)
+	local mins, maxs = pEntity:GetMins(), pEntity:GetMaxs()
+	local origin = pEntity:GetAbsOrigin()
+	local grounded = IsOnGround(origin, mins, maxs, pEntity)
+	return grounded == true
+end
+
+--- exponential smoothing
+--- is this better?
+---@param pEntity Entity
+---@return Vector3
+local function GetSmoothedVelocity(pEntity)
+	local samples = velocity_samples[pEntity:GetIndex()]
+	if not samples or #samples == 0 then
+		return pEntity:EstimateAbsVelocity()
+	end
+
+	local grounded = IsPlayerOnGround(pEntity)
+	local alpha = grounded and 0.3 or 0.2 -- grounded = smoother, airborne = smootherer --more responsive
+
+	local smoothed = samples[1]
+	for i = 2, #samples do
+		smoothed = (samples[i] * alpha) + (smoothed * (1 - alpha))
+	end
+
+	return smoothed
+end
+
+---@param pEntity Entity
+---@return number
+local function GetSmoothedAngularVelocity(pEntity)
+	local samples = position_samples[pEntity:GetIndex()]
+	if not samples or #samples < 3 then
+		return 0
+	end
+
+	local function GetYaw(vec)
+		return (vec.x == 0 and vec.y == 0) and 0 or math.deg(math.atan(vec.y, vec.x))
+	end
+
+	local ang_vels = {}
+
+	for i = 1, #samples - 2 do
+		local d1 = samples[i + 1].pos - samples[i].pos
+		local d2 = samples[i + 2].pos - samples[i + 1].pos
+
+		local yaw1 = GetYaw(d1)
+		local yaw2 = GetYaw(d2)
+
+		local diff = (yaw2 - yaw1 + 180) % 360 - 180
+		ang_vels[#ang_vels + 1] = diff
+	end
+
+	if #ang_vels == 0 then
+		return 0
+	end
+
+	local grounded = IsPlayerOnGround(pEntity)
+	local alpha = grounded and 0.25 or 0.5 -- smoother if grounded
+
+	local smoothed = ang_vels[1]
+	for i = 2, #ang_vels do
+		smoothed = (ang_vels[i] * alpha) + (smoothed * (1 - alpha))
+	end
+
+	local MAX_ANG_VEL = 45
+	return math.max(-MAX_ANG_VEL, math.min(smoothed, MAX_ANG_VEL))
 end
 
 local function GetEnemyTeam()
@@ -162,15 +195,18 @@ function sim.RunBackground(players)
 end
 
 ---@param pTarget Entity The target
+---@param shootPos Vector3
 ---@param time number The time in seconds we want to predict
-function sim.Run(pTarget, time)
+function sim.Run(shootPos, pTarget, time)
 	local smoothed_velocity = GetSmoothedVelocity(pTarget)
 	local angular_velocity = GetSmoothedAngularVelocity(pTarget)
 	local last_pos = pTarget:GetAbsOrigin()
+
 	local tick_interval = globals.TickInterval()
 	local positions = {}
 
 	local mins, maxs = pTarget:GetMins(), pTarget:GetMaxs()
+	local stepHeight = 25
 
 	---@param ent Entity
 	---@param contentsMask number
@@ -178,71 +214,64 @@ function sim.Run(pTarget, time)
 		return ent:GetIndex() ~= pTarget:GetIndex()
 	end
 
-	-- apply slight loss in angular velocity to prevent infinite spinning (there arent many people that use the strategy of spinning like a beyblade to dodge projectiles)
-	local ang_vel_decay = 0.95
-
 	for i = 1, (time * 67) // 1 do
-		-- apply angular velocity with decay
+		-- Apply angular velocity
 		local yaw = math.rad(angular_velocity)
 		local cos_yaw, sin_yaw = math.cos(yaw), math.sin(yaw)
 		local vx, vy = smoothed_velocity.x, smoothed_velocity.y
-
-		-- 2D rotation on XY plane
 		smoothed_velocity.x = vx * cos_yaw - vy * sin_yaw
 		smoothed_velocity.y = vx * sin_yaw + vy * cos_yaw
 
-		-- Check if we're on ground BEFORE applying gravity
-		local onground = IsOnGround(last_pos, mins, maxs)
+		-- Ground check
+		local ground_trace = engine.TraceLine(last_pos, last_pos + Vector3(0, 0, -10), MASK_SHOT_HULL, shouldHitEntity)
+		local onground = ground_trace and ground_trace.fraction < 1.0
 
-		-- Apply gravity if not on ground
+		-- Gravity
 		if not onground then
 			smoothed_velocity.z = smoothed_velocity.z - (800 * tick_interval)
-		else
-			-- If on ground and moving downward, stop downward movement
-			if smoothed_velocity.z < 0 then
-				smoothed_velocity.z = 0
-			end
+		elseif smoothed_velocity.z < 0 then
+			smoothed_velocity.z = 0
 		end
 
-		local predicted_pos = last_pos + (smoothed_velocity * tick_interval)
+		local move_delta = smoothed_velocity * tick_interval
+		local next_pos = last_pos + move_delta
 
-		local trace = engine.TraceHull(last_pos, predicted_pos, mins, maxs, MASK_SHOT_HULL, shouldHitEntity)
+		-- collision trace
+		local trace = engine.TraceHull(last_pos, next_pos, mins, maxs, MASK_PLAYERSOLID, shouldHitEntity)
 
-		if trace then
-			if trace.fraction < 1 then
-				-- Calculate the actual end position
-				local actual_pos = last_pos + (predicted_pos - last_pos) * trace.fraction
+		if trace.fraction < 1.0 then
+			-- try stair step
+			local step_up = last_pos + Vector3(0, 0, stepHeight)
+			local step_up_trace = engine.TraceHull(last_pos, step_up, mins, maxs, MASK_PLAYERSOLID, shouldHitEntity)
 
-				-- Calculate remaining velocity after collision
-				local remaining_fraction = 1 - trace.fraction
-				local remaining_velocity = smoothed_velocity * remaining_fraction
+			if step_up_trace.fraction == 1.0 then
+				local step_forward = step_up + move_delta
+				local step_forward_trace =
+					engine.TraceHull(step_up, step_forward, mins, maxs, MASK_PLAYERSOLID, shouldHitEntity)
 
-				-- Reflect velocity off the surface normal
-				local dot = remaining_velocity:Dot(trace.plane)
-				smoothed_velocity = remaining_velocity - (trace.plane * dot)
-
-				-- Set position to collision point with small offset to prevent getting stuck
-				last_pos = actual_pos + (trace.plane * 0.1)
-				positions[#positions + 1] = last_pos
-
-				-- If velocity is nearly zero, stop simulation
-				if smoothed_velocity:Length() < 1 then
-					break
+				if step_forward_trace.fraction > 0 then
+					-- successful stair step
+					next_pos = step_forward_trace.endpos
+					last_pos = next_pos
+					positions[#positions + 1] = last_pos
+					goto continue
 				end
-			else
-				-- No collision, continue with predicted position
-				positions[#positions + 1] = predicted_pos
-				last_pos = predicted_pos
 			end
-		else
-			-- No trace result, this shouldn't happen
-			-- but just in case it does, just continue as if it didnt error
-			positions[#positions + 1] = predicted_pos
-			last_pos = predicted_pos
+
+			-- Failed to stair step: slide
+			next_pos = trace.endpos
+			local normal = trace.plane
+			local dot = smoothed_velocity:Dot(normal)
+			smoothed_velocity = smoothed_velocity - normal * dot
 		end
 
-		-- add decay to angular velocity
-		angular_velocity = angular_velocity * ang_vel_decay
+		trace = engine.TraceLine(shootPos, next_pos, MASK_SHOT_HULL, shouldHitEntity)
+		if trace and trace.fraction == 1 then
+			last_pos = next_pos
+			positions[#positions + 1] = last_pos
+		end
+
+		::continue::
 	end
 
 	return positions

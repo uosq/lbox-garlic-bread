@@ -125,6 +125,7 @@ local function GetProjectileInfo(weapon)
 	return projInfo[defIndex] or projInfoID[id] or { 1100, 0.2 }
 end
 
+-- Fixed GetClosestPlayerToFov function
 ---@param players table<integer, Entity>
 ---@param plocal Entity
 ---@param utils GB_Utils
@@ -134,7 +135,7 @@ end
 local function GetClosestPlayerToFov(plocal, settings, utils, ent_utils, players)
 	local info = {
 		angle = nil,
-		fov = settings.aimbot.fov,
+		fov = settings.aimbot.fov, -- Start with infinite FOV instead of settings.aimbot.fov
 		index = nil,
 		center = nil,
 		pos = nil,
@@ -144,15 +145,22 @@ local function GetClosestPlayerToFov(plocal, settings, utils, ent_utils, players
 	local shootpos = ent_utils.GetShootPosition(plocal)
 
 	for _, player in pairs(players) do
-		if not player:IsDormant() and player:IsAlive() and player:GetTeamNumber() ~= plocal:GetTeamNumber() then
+		if
+			not player:IsDormant()
+			and player:IsAlive()
+			and player:GetTeamNumber() ~= plocal:GetTeamNumber()
+			and player:InCond(E_TFCOND.TFCond_Cloaked) == false
+		then
 			-- Get the visible body part info for this player
 			local player_info = ent_utils.FindVisibleBodyPart(player, shootpos, utils, viewangle, PREFERRED_BONES)
 
-			-- Check if this player is visible and within FOV
-			if player_info and player_info.fov and player_info.fov < info.fov then
-				-- This player is closer to crosshair than our current best
-				info = player_info
-				info.index = player:GetIndex()
+			-- Check if this player is visible and within the configured FOV limit
+			if player_info and player_info.fov and player_info.fov < settings.aimbot.fov then
+				-- Check if this player is closer to crosshair than our current best
+				if player_info.fov < info.fov then
+					info = player_info
+					info.index = player:GetIndex()
+				end
 			end
 		end
 	end
@@ -160,29 +168,35 @@ local function GetClosestPlayerToFov(plocal, settings, utils, ent_utils, players
 	return info
 end
 
----@param plocal Entity
----@param weapon Entity
----@param players table
----@param settings GB_Settings
----@param ent_utils GB_EntUtils
----@param utils GB_Utils
+-- Modified RunBackground function with better target switching
 function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils)
+	if plocal:IsAlive() == false then
+		return false, nil
+	end
+
 	local netchan = clientstate:GetNetChannel()
 	if not netchan then
 		predicted_pos = nil
 		simulated_pos = {}
+		best_target = nil
 		return false, nil
 	end
+
+	playerSim.RunBackground(players)
 
 	local projectile_info = GetProjectileInfo(weapon)
 	if not projectile_info then
 		predicted_pos = nil
 		simulated_pos = {}
+		best_target = nil
 		return false, nil
 	end
 
-	playerSim.RunBackground(players)
-	best_target = GetClosestPlayerToFov(plocal, settings, utils, ent_utils, players)
+	-- Always re-evaluate targets instead of sticking to the old one
+	-- This ensures we always pick the best available target
+	local new_target = GetClosestPlayerToFov(plocal, settings, utils, ent_utils, players)
+
+	best_target = new_target
 
 	if not best_target or not best_target.index or not best_target.pos then
 		predicted_pos = nil
@@ -194,6 +208,7 @@ function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils)
 	if not target_ent then
 		predicted_pos = nil
 		simulated_pos = {}
+		best_target = nil
 		return false, nil
 	end
 
@@ -210,7 +225,7 @@ function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils)
 		travel_time = EstimateTravelTime(shootPos, predicted_target_pos, projectile_speed)
 
 		-- predict where the target will be at that time
-		local player_positions = playerSim.Run(target_ent, travel_time)
+		local player_positions = playerSim.Run(shootPos, target_ent, travel_time)
 		if not player_positions or #player_positions == 0 then
 			break
 		end
@@ -234,7 +249,7 @@ function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils)
 	-- is it not visible?
 	if not IsVisible(shootPos, predicted_pos, target_ent) then
 		-- try to find a visible bone position at the predicted time
-		local player_positions = playerSim.Run(target_ent, travel_time)
+		local player_positions = playerSim.Run(shootPos, target_ent, travel_time)
 		if player_positions and #player_positions > 0 then
 			local final_player_pos = player_positions[#player_positions]
 
@@ -248,7 +263,7 @@ function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils)
 					local predicted_bone_pos = bone_pos + movement_offset
 
 					if IsVisible(shootPos, predicted_bone_pos, target_ent) then
-						predicted_pos = predicted_bone_pos
+						predicted_pos = final_player_pos
 						break
 					end
 				end
@@ -275,6 +290,15 @@ end
 function proj.Run(utils, wep_utils, ent_utils, plocal, weapon, cmd)
 	if best_target and best_target.index and predicted_pos and wep_utils.CanShoot() then
 		local shootpos = ent_utils.GetShootPosition(plocal)
+
+		local trace = engine.TraceLine(shootpos, predicted_pos, MASK_SHOT_HULL, function()
+			return false
+		end)
+
+		if trace and trace.fraction < 1 then
+			return false, nil
+		end
+
 		local projectile_info = GetProjectileInfo(weapon)
 		if not projectile_info then
 			return false, nil
@@ -304,7 +328,11 @@ function proj.Run(utils, wep_utils, ent_utils, plocal, weapon, cmd)
 		cmd.buttons = cmd.buttons | IN_ATTACK
 		cmd:SetSendPacket(false)
 
-		return true, best_target.index
+		local target_index = best_target.index
+		predicted_pos = nil
+		best_target = nil
+
+		return true, target_index
 	end
 
 	return false, nil

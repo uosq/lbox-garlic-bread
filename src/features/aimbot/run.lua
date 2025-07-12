@@ -21,12 +21,12 @@ function aim.CreateMove(settings, utils, wep_utils, ent_utils, plocal, cmd)
 		return false, nil
 	end
 
+	local players = entities.FindByClass("CTFPlayer")
+	proj.RunBackground(plocal, pweapon, players, settings, ent_utils, utils)
+
 	if not input.IsButtonDown(settings.aimbot.key) then
 		return false, nil
 	end
-
-	local players = entities.FindByClass("CTFPlayer")
-	proj.RunBackground(plocal, pweapon, players, settings, ent_utils, utils)
 
 	if engine.IsChatOpen() or engine.IsGameUIVisible() then
 		return false, nil
