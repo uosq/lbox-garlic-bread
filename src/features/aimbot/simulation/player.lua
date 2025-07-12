@@ -143,93 +143,6 @@ local function IsOnGround(position, mins, maxs)
 	return trace and trace.fraction < 0.9
 end
 
----@param pEntity Entity
----@return Vector3[]
-local function SimulatePlayer(pEntity)
-	local smoothed_velocity = GetSmoothedVelocity(pEntity)
-	local angular_velocity = GetSmoothedAngularVelocity(pEntity)
-	local last_pos = pEntity:GetAbsOrigin()
-	local tick_interval = globals.TickInterval()
-	local positions = {}
-
-	local mins, maxs = pEntity:GetMins(), pEntity:GetMaxs()
-
-	---@param ent Entity
-	---@param contentsMask number
-	local function shouldHitEntity(ent, contentsMask)
-		return ent:GetIndex() ~= pEntity:GetIndex()
-	end
-
-	-- apply slight loss in angular velocity to prevent infinite spinning (there arent many people that use the strategy of spinning like a beyblade to dodge projectiles)
-	local ang_vel_decay = 0.95
-
-	for i = 1, MAX_PREDICTED_TICKS do
-		-- apply angular velocity with decay
-		local yaw = math.rad(angular_velocity)
-		local cos_yaw, sin_yaw = math.cos(yaw), math.sin(yaw)
-		local vx, vy = smoothed_velocity.x, smoothed_velocity.y
-
-		-- 2D rotation on XY plane
-		smoothed_velocity.x = vx * cos_yaw - vy * sin_yaw
-		smoothed_velocity.y = vx * sin_yaw + vy * cos_yaw
-
-		-- Check if we're on ground BEFORE applying gravity
-		local onground = IsOnGround(last_pos, mins, maxs)
-
-		-- Apply gravity if not on ground
-		if not onground then
-			smoothed_velocity.z = smoothed_velocity.z - (800 * tick_interval)
-		else
-			-- If on ground and moving downward, stop downward movement
-			if smoothed_velocity.z < 0 then
-				smoothed_velocity.z = 0
-			end
-		end
-
-		local predicted_pos = last_pos + (smoothed_velocity * tick_interval)
-
-		local trace = engine.TraceHull(last_pos, predicted_pos, mins, maxs, MASK_SHOT_HULL, shouldHitEntity)
-
-		if trace then
-			if trace.fraction < 1 then
-				-- Calculate the actual end position
-				local actual_pos = last_pos + (predicted_pos - last_pos) * trace.fraction
-
-				-- Calculate remaining velocity after collision
-				local remaining_fraction = 1 - trace.fraction
-				local remaining_velocity = smoothed_velocity * remaining_fraction
-
-				-- Reflect velocity off the surface normal
-				local dot = remaining_velocity:Dot(trace.plane)
-				smoothed_velocity = remaining_velocity - (trace.plane * dot)
-
-				-- Set position to collision point with small offset to prevent getting stuck
-				last_pos = actual_pos + (trace.plane * 0.1)
-				positions[#positions + 1] = last_pos
-
-				-- If velocity is nearly zero, stop simulation
-				if smoothed_velocity:LengthSqr() < 1 then
-					break
-				end
-			else
-				-- No collision, continue with predicted position
-				positions[#positions + 1] = predicted_pos
-				last_pos = predicted_pos
-			end
-		else
-			-- No trace result, this shouldn't happen
-			-- but just in case it does, just continue as if it didnt error
-			positions[#positions + 1] = predicted_pos
-			last_pos = predicted_pos
-		end
-
-		-- add decay to angular velocity
-		angular_velocity = angular_velocity * ang_vel_decay
-	end
-
-	return positions
-end
-
 local function GetEnemyTeam()
 	local pLocal = entities.GetLocalPlayer()
 	if not pLocal then
@@ -237,31 +150,6 @@ local function GetEnemyTeam()
 	end
 
 	return pLocal:GetTeamNumber() == 2 and 3 or 2
-end
-
-local function AddAllPlayerSample(enemy_team)
-	local players = entities.FindByClass("CTFPlayer")
-	for _, player in pairs(players) do
-		--if player:GetTeamNumber() == enemy_team and player:IsAlive() and not player:IsDormant() then
-		AddPositionSample(player)
-		--end
-	end
-end
-
----@param uCmd UserCmd
-local function CreateMove(uCmd)
-	--local enemy_team = GetEnemyTeam()
-	--AddAllPlayerSample(enemy_team)
-
-	local players = entities.FindByClass("CTFPlayer")
-
-	for _, player in pairs(players) do
-		--- no need to predict our own team
-		--if player:GetTeamNumber() == enemy_team and player:IsAlive() and not player:IsDormant() then
-		AddPositionSample(player)
-		simulated_pos[player:GetIndex()] = SimulatePlayer(player)
-		--end
-	end
 end
 
 function sim.RunBackground(players)

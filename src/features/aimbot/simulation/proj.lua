@@ -200,10 +200,10 @@ function sim.Run(pLocal, pWeapon, vecForward, nTime)
 end
 
 function sim.Unload()
-	-- clear model cache
-	modelCache = {}
+	modelCache = nil
 
-	-- clean up physics objects
+	--- clean up physics objects
+	--- im not sure if destroying the env destroys them too, so just in case
 	for _, obj in pairs(env:GetActiveObjects()) do
 		env:DestroyObject(obj)
 	end
