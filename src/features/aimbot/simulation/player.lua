@@ -3,7 +3,7 @@ local sim = {}
 local position_samples = {}
 local velocity_samples = {}
 local MAX_ALLOWED_SPEED = 2000 -- HU/sec
-local SAMPLE_COUNT = 32
+local SAMPLE_COUNT = 8
 
 --- ngl im proud of this function
 --- this little fella is the goat
@@ -136,7 +136,7 @@ end
 ---@return number
 local function GetSmoothedAngularVelocity(pEntity)
 	local samples = position_samples[pEntity:GetIndex()]
-	if not samples or #samples < 3 then
+	if not samples or #samples < 4 then -- Need more samples for better smoothing
 		return 0
 	end
 
@@ -144,31 +144,73 @@ local function GetSmoothedAngularVelocity(pEntity)
 		return (vec.x == 0 and vec.y == 0) and 0 or math.deg(math.atan(vec.y, vec.x))
 	end
 
+	-- First pass: Calculate raw angular velocities with movement threshold
 	local ang_vels = {}
+	local MIN_MOVEMENT = 0.1 -- Ignore tiny movements that are likely noise
 
 	for i = 1, #samples - 2 do
 		local d1 = samples[i + 1].pos - samples[i].pos
 		local d2 = samples[i + 2].pos - samples[i + 1].pos
 
+		-- Skip if movement is too small (likely noise)
+		if d1:Length() < MIN_MOVEMENT or d2:Length() < MIN_MOVEMENT then
+			goto continue
+		end
+
 		local yaw1 = GetYaw(d1)
 		local yaw2 = GetYaw(d2)
-
 		local diff = (yaw2 - yaw1 + 180) % 360 - 180
-		ang_vels[#ang_vels + 1] = diff
+
+		-- Filter out extreme jumps (likely noise)
+		if math.abs(diff) < 120 then -- Ignore impossible turns
+			ang_vels[#ang_vels + 1] = diff
+		end
+
+		::continue::
 	end
 
 	if #ang_vels == 0 then
 		return 0
 	end
 
+	-- Second pass: Apply median filter to remove outliers
+	if #ang_vels >= 3 then
+		local filtered_vels = {}
+		for i = 1, #ang_vels do
+			if i == 1 or i == #ang_vels then
+				-- Keep edge values
+				filtered_vels[i] = ang_vels[i]
+			else
+				-- Use median of 3 consecutive values
+				local window = { ang_vels[i - 1], ang_vels[i], ang_vels[i + 1] }
+				table.sort(window)
+				filtered_vels[i] = window[2] -- median
+			end
+		end
+		ang_vels = filtered_vels
+	end
+
+	-- Third pass: Exponential smoothing with adaptive alpha
 	local grounded = IsPlayerOnGround(pEntity)
-	local alpha = grounded and 0.25 or 0.5 -- smoother if grounded
+	local base_alpha = grounded and 0.4 or 0.2 -- More responsive smoothing
 
 	local smoothed = ang_vels[1]
 	for i = 2, #ang_vels do
+		-- Adaptive alpha based on change magnitude
+		local change = math.abs(ang_vels[i] - smoothed)
+		local alpha = base_alpha * math.min(1, change / 30) -- Reduce smoothing for large changes
+		alpha = math.max(0.1, alpha) -- Minimum smoothing
+
 		smoothed = (ang_vels[i] * alpha) + (smoothed * (1 - alpha))
 	end
 
+	-- Apply deadzone for very small movements
+	local DEADZONE = 2.0
+	if math.abs(smoothed) < DEADZONE then
+		smoothed = 0
+	end
+
+	-- Clamp to reasonable range
 	local MAX_ANG_VEL = 45
 	return math.max(-MAX_ANG_VEL, math.min(smoothed, MAX_ANG_VEL))
 end

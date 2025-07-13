@@ -10,6 +10,9 @@ local vector = Vector3
 
 local simulated_pos = {}
 
+local displayed_path = {}
+local displayed_time = 0
+
 ---@type table<integer, integer>
 local ItemDefinitions = {}
 do
@@ -327,14 +330,6 @@ function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils,
 		return false, nil
 	end
 
-	--[[local projectile_info = GetProjectileInfo(weapon)
-	if not projectile_info then
-		predicted_pos = nil
-		simulated_pos = {}
-		best_target = nil
-		return false, nil
-	end]]
-
 	start = os.clock()
 
 	local new_target = GetClosestPlayerToFov(plocal, settings, utils, ent_utils, players)
@@ -403,8 +398,8 @@ function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils,
 			break
 		end
 
-		simulated_pos = player_positions
 		predicted_target_pos = new_predicted_pos
+		simulated_pos = player_positions
 	end
 
 	time.proj_iterations = os.clock() - start
@@ -540,6 +535,9 @@ function proj.Run(utils, wep_utils, plocal, weapon, cmd)
 		predicted_pos = nil
 		best_target = nil
 
+		displayed_path = simulated_pos
+		displayed_time = globals.CurTime() + 1
+
 		return true, target_index
 	end
 
@@ -551,13 +549,26 @@ function proj.Draw()
 		return
 	end
 
+	local pLocal = entities.GetLocalPlayer()
+	if not pLocal then
+		return
+	end
+
+	if (globals.CurTime() - displayed_time) > 0 then
+		displayed_path = {}
+	end
+
+	if pLocal:IsAlive() == false then
+		return
+	end
+
 	draw.Color(255, 255, 255, 255)
 
-	if simulated_pos and #simulated_pos >= 2 then
-		local max_positions = #simulated_pos
+	if displayed_path and #displayed_path >= 2 then
+		local max_positions = #displayed_path
 		local last_pos = nil
 
-		for i, pos in pairs(simulated_pos) do
+		for i, pos in pairs(displayed_path) do
 			if last_pos then
 				local screen_current = client.WorldToScreen(pos)
 				local screen_last = client.WorldToScreen(last_pos)
