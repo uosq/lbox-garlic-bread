@@ -328,11 +328,7 @@ local function GetClosestPlayerToFov(plocal, weapon, settings, utils, ent_utils,
 	return info
 end
 
-function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils, time)
-	if plocal:IsAlive() == false then
-		return false, nil
-	end
-
+function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils)
 	local netchan = clientstate:GetNetChannel()
 	if not netchan then
 		predicted_pos = nil
@@ -341,11 +337,14 @@ function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils,
 		return false, nil
 	end
 
-	local start = os.clock()
+	if plocal:IsAlive() == false then
+		predicted_pos = nil
+		simulated_pos = {}
+		best_target = nil
+		return false, nil
+	end
 
 	playerSim.RunBackground(players)
-
-	time.playerSimBackground = os.clock() - start
 
 	local iItemDefinitionIndex = weapon:GetPropInt("m_iItemDefinitionIndex")
 	local iItemDefinitionType = ItemDefinitions[iItemDefinitionIndex] or 0
@@ -371,13 +370,9 @@ function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils,
 		return false, nil
 	end
 
-	start = os.clock()
-
 	local new_target = GetClosestPlayerToFov(plocal, weapon, settings, utils, ent_utils, players)
 
 	best_target = new_target
-
-	time.closest_player_fov = os.clock() - start
 
 	if not best_target or not best_target.index or not best_target.pos then
 		predicted_pos = nil
@@ -401,8 +396,6 @@ function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils,
 	local predicted_target_pos = target_ent:GetAbsOrigin()
 	local travel_time = 0.0
 	local stepSize = plocal:GetPropFloat("localdata", "m_flStepSize") or 18 -- i think 18 is the default, not sure
-
-	start = os.clock()
 
 	for i = 1, max_iterations do
 		-- calculate travel time to predicted position
@@ -442,8 +435,6 @@ function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils,
 		predicted_target_pos = new_predicted_pos
 		simulated_pos = player_positions
 	end
-
-	time.proj_iterations = os.clock() - start
 
 	-- the predicted position is where we think the target will be
 	predicted_pos = predicted_target_pos

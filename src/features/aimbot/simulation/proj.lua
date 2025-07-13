@@ -115,7 +115,7 @@ end
 ---@param pLocal Entity The localplayer
 ---@param pWeapon Entity The localplayer's weapon
 ---@param shootPos Vector3
----@param vecForward Vector3 The target position the projectile should aim for
+---@param vecForward Vector3 The target direction the projectile should aim for
 ---@param nTime number Number of seconds we want to simulate
 ---@return {pos: Vector3, time_secs: number, target_index?: integer, error?: number}[]
 function sim.Run(pLocal, pWeapon, shootPos, vecForward, nTime)
