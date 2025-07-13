@@ -9,19 +9,12 @@ env:SetAirDensity(2.0)
 env:SetGravity(Vector3(0, 0, -800))
 env:SetSimulationTimestep(globals.TickInterval())
 
-local TICK_INTERVAL = globals.TickInterval()
 local MASK_SHOT_HULL = MASK_SHOT_HULL
 
 local PROJECTILE_MODELS = {
 	[E_WeaponBaseID.TF_WEAPON_ROCKETLAUNCHER] = [[models/weapons/w_models/w_rocket.mdl]],
 	[E_WeaponBaseID.TF_WEAPON_GRENADELAUNCHER] = [[models/weapons/w_models/w_grenade_grenadelauncher.mdl]],
 	[E_WeaponBaseID.TF_WEAPON_STICKBOMB] = [[models/weapons/w_models/w_stickybomb.mdl]],
-}
-
-local PROJECTILE_BOXES = {
-	[E_WeaponBaseID.TF_WEAPON_ROCKETLAUNCHER] = { mins = Vector3(), maxs = Vector3() },
-	[E_WeaponBaseID.TF_WEAPON_GRENADELAUNCHER] = { mins = Vector3(-4.0, -4.0, -4.0), maxs = Vector3(4.0, 4.0, 4.0) },
-	[E_WeaponBaseID.TF_WEAPON_STICKBOMB] = { mins = Vector3(-4.0, -4.0, -4.0), maxs = Vector3(4.0, 4.0, 4.0) },
 }
 
 -- projectile info by definition index
@@ -54,27 +47,9 @@ local DEFAULT_PROJ_INFO = { 1100, 0.2 }
 local modelCache = {}
 
 ---@param pWeapon Entity
----@param pLocal Entity
-local function GetProjectileOffset(pLocal, pWeapon)
-	local temp = {
-		[E_WeaponBaseID.TF_WEAPON_GRENADELAUNCHER] = Vector3(16.0, 8.0, -6.0),
-		[E_WeaponBaseID.TF_WEAPON_PIPEBOMBLAUNCHER] = Vector3(16.0, 8.0, -6.0),
-		[E_WeaponBaseID.TF_WEAPON_COMPOUND_BOW] = Vector3(23.5, 8.0, -3.0),
-		[E_WeaponBaseID.TF_WEAPON_ROCKETLAUNCHER] = Vector3(23.5, 12.0, -3.0),
-	}
-
-	return temp[pWeapon:GetWeaponID()] or pLocal:GetPropVector("m_vecViewOffset[0]")
-end
-
----@param pWeapon Entity
 local function GetProjectileModel(pWeapon)
 	local weaponID = pWeapon:GetWeaponID()
 	return PROJECTILE_MODELS[weaponID] or PROJECTILE_MODELS[E_WeaponBaseID.TF_WEAPON_ROCKETLAUNCHER]
-end
-
-local function GetProjectileBox(pWeapon)
-	local weaponID = pWeapon:GetWeaponID()
-	return PROJECTILE_BOXES[weaponID] or PROJECTILE_BOXES[E_WeaponBaseID.TF_WEAPON_ROCKETLAUNCHER]
 end
 
 -- Optimized remap function with early returns
@@ -139,76 +114,55 @@ end
 
 ---@param pLocal Entity The localplayer
 ---@param pWeapon Entity The localplayer's weapon
----@param vecForward Vector3 The initial angle of the projectile
+---@param shootPos Vector3
+---@param vecForward Vector3 The target position the projectile should aim for
 ---@param nTime number Number of seconds we want to simulate
 ---@return {pos: Vector3, time_secs: number, target_index?: integer, error?: number}[]
-function sim.Run(pLocal, pWeapon, vecForward, nTime)
+function sim.Run(pLocal, pWeapon, shootPos, vecForward, nTime)
 	local positions = {}
 
 	local projectile = CreateProjectile(pWeapon)
 	local projinfo = GetProjectileInfo(pWeapon)
 
-	local viewangles = engine.GetViewAngles()
-	local viewoffset = GetProjectileOffset(pLocal, pWeapon)
-	local previousPos = pLocal:GetAbsOrigin() + (viewangles:Forward() * viewoffset)
-	local localPlayerIndex = pLocal:GetIndex()
+	local mins, maxs = projinfo.maxs or Vector3(), projinfo.mins or Vector3()
 
 	local speed = projinfo[1]
-	local velocity = viewangles:Forward() * speed
+	local velocity = vecForward * speed
 
-	local bbox = GetProjectileBox(pWeapon)
-	local mins, maxs = bbox.mins, bbox.maxs
-
-	projectile:SetPosition(previousPos, vecForward, true)
+	local gravity = client.GetConVar("sv_gravity") * projinfo[2]
+	env:SetGravity(Vector3(0, 0, -gravity))
+	projectile:SetPosition(shootPos, vecForward, true)
 	projectile:SetVelocity(velocity, Vector3())
 
-	-- get max simulation time
-	local maxSimTime = math.min(MAX_SIM_TIME, nTime)
+	local tickInterval = globals.TickInterval()
+	local running = true
 
-	local stepCount = 0
-	local currentTime = 0
+	while running and env:GetSimulationTime() < nTime do
+		env:Simulate(tickInterval)
 
-	-- Create trace filter function once
-	local traceFilter = function(ent, contentsMask)
-		return ent:GetIndex() ~= localPlayerIndex
-	end
-
-	while currentTime < maxSimTime do
 		local currentPos = projectile:GetPosition()
 
-		local trace = engine.TraceHull(previousPos, currentPos, mins, maxs, MASK_SHOT_HULL, traceFilter)
+		local trace = engine.TraceHull(shootPos, currentPos, mins, maxs, MASK_SHOT_HULL, function(ent)
+			return ent:GetIndex() ~= pLocal:GetIndex()
+		end)
 
-		stepCount = stepCount + 1
-		positions[stepCount] = {
-			pos = currentPos,
-			time_secs = currentTime,
-		}
+		if trace and trace.fraction >= 1 then
+			local record = {
+				pos = currentPos,
+				time_secs = env:GetSimulationTime(),
+			}
 
-		if trace and trace.fraction < 1 then
-			break -- projectile hit something
+			table.insert(positions, record)
+			shootPos = currentPos
+		else
+			break
 		end
-
-		previousPos = currentPos
-		env:Simulate(TICK_INTERVAL)
-		currentTime = currentTime + TICK_INTERVAL
 	end
 
 	env:DestroyObject(projectile)
 	env:ResetSimulationClock()
 
 	return positions
-end
-
-function sim.Unload()
-	modelCache = nil
-
-	--- clean up physics objects
-	--- im not sure if destroying the env destroys them too, so just in case
-	for _, obj in pairs(env:GetActiveObjects()) do
-		env:DestroyObject(obj)
-	end
-
-	physics.DestroyEnvironment(env)
 end
 
 return sim

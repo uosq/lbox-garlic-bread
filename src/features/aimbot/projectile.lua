@@ -1,15 +1,18 @@
 local proj = {}
 
 local playerSim = require("src.features.aimbot.simulation.player")
+local projSim = require("src.features.aimbot.simulation.proj")
 
 local PREFERRED_BONES = { 4, 3, 10, 7, 1 }
 local predicted_pos = nil
 local best_target = nil
+local total_time = 0
 
 local vector = Vector3
 
 local simulated_pos = {}
 
+local displayed_projectile_path = {}
 local displayed_path = {}
 local displayed_time = 0
 
@@ -245,13 +248,50 @@ local function GetProjectileInformation(pWeapon, bDucking, iCase, iDefIndex, iWe
 	end
 end
 
+local function GetShootPos(pLocal, pWeapon)
+	local iItemDefinitionIndex = pWeapon:GetPropInt("m_iItemDefinitionIndex")
+	local iItemDefinitionType = ItemDefinitions[iItemDefinitionIndex] or 0
+	if iItemDefinitionType == 0 then
+		predicted_pos = nil
+		simulated_pos = {}
+		best_target = nil
+		return {}
+	end
+
+	local vOffset, fForwardVelocity, fUpwardVelocity, vCollisionMax, fGravity, fDrag = GetProjectileInformation(
+		pWeapon,
+		(pLocal:GetPropInt("m_fFlags") & FL_DUCKING) == 2,
+		iItemDefinitionType,
+		iItemDefinitionIndex,
+		pWeapon:GetWeaponID()
+	)
+
+	if not (vOffset or fForwardVelocity or fUpwardVelocity or vCollisionMax or fGravity or fDrag) then
+		predicted_pos = nil
+		simulated_pos = {}
+		best_target = nil
+		return {}
+	end
+
+	local vCollisionMin = -vCollisionMax
+
+	-- i stole this from terminator
+	local vStartPosition = pLocal:GetAbsOrigin() + pLocal:GetPropVector("localdata", "m_vecViewOffset[0]")
+	local vStartAngle = engine.GetViewAngles()
+
+	return vStartPosition
+		+ (vStartAngle:Forward() * vOffset.x)
+		+ (vStartAngle:Right() * (vOffset.y * (pWeapon:IsViewModelFlipped() and -1 or 1)))
+		+ (vStartAngle:Up() * vOffset.z)
+end
+
 ---@param players table<integer, Entity>
 ---@param plocal Entity
 ---@param utils GB_Utils
 ---@param settings GB_Settings
 ---@param ent_utils GB_EntUtils
 ---@return PlayerInfo
-local function GetClosestPlayerToFov(plocal, settings, utils, ent_utils, players)
+local function GetClosestPlayerToFov(plocal, weapon, settings, utils, ent_utils, players)
 	local info = {
 		angle = nil,
 		fov = settings.aimbot.fov,
@@ -261,7 +301,8 @@ local function GetClosestPlayerToFov(plocal, settings, utils, ent_utils, players
 	}
 
 	local viewangle = engine:GetViewAngles()
-	local shootpos = ent_utils.GetShootPosition(plocal)
+
+	local shootpos = GetShootPos(plocal, weapon)
 
 	for _, player in pairs(players) do
 		if
@@ -332,7 +373,7 @@ function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils,
 
 	start = os.clock()
 
-	local new_target = GetClosestPlayerToFov(plocal, settings, utils, ent_utils, players)
+	local new_target = GetClosestPlayerToFov(plocal, weapon, settings, utils, ent_utils, players)
 
 	best_target = new_target
 
@@ -353,7 +394,7 @@ function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils,
 	end
 
 	local projectile_speed = fForwardVelocity
-	local shootPos = ent_utils.GetShootPosition(plocal)
+	local shootPos = GetShootPos(plocal, weapon)
 
 	local max_iterations = 10
 	local tolerance = 5.0 -- HU
@@ -381,7 +422,7 @@ function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils,
 			end
 		end
 
-		local total_time = travel_time + charge_time
+		total_time = travel_time + charge_time
 
 		-- predict where the target will be at that time
 		local player_positions = playerSim.Run(stepSize, target_ent, total_time)
@@ -500,20 +541,23 @@ function proj.Run(utils, wep_utils, plocal, weapon, cmd)
 			return false, nil
 		end
 
-		-- for projectiles with gravity, use ballistic arc calculation
 		local angle = nil
-		if fGravity > 0 then -- has gravity
+		local projectile_path
+
+		--- ballistic
+		if fGravity > 0 then
 			local gravity = fGravity * globals.TickInterval()
 			local aim_dir = SolveBallisticArc(shootpos, predicted_pos, fForwardVelocity, gravity)
 
 			if aim_dir then
+				projectile_path = projSim.Run(plocal, weapon, shootpos, aim_dir, total_time)
 				angle = DirectionToAngles(aim_dir)
 			end
-		end
-
-		-- fallback to direct aim if ballistic calculation fails or no gravity
-		if not angle then
-			angle = utils.math.PositionAngles(shootpos, predicted_pos)
+		else -- straight line projectile
+			if not angle then
+				angle = utils.math.PositionAngles(shootpos, predicted_pos)
+				projectile_path = projSim.Run(plocal, weapon, shootpos, angle:Forward(), total_time)
+			end
 		end
 
 		if not angle then
@@ -536,6 +580,7 @@ function proj.Run(utils, wep_utils, plocal, weapon, cmd)
 		best_target = nil
 
 		displayed_path = simulated_pos
+		displayed_projectile_path = projectile_path
 		displayed_time = globals.CurTime() + 1
 
 		return true, target_index
@@ -545,10 +590,6 @@ function proj.Run(utils, wep_utils, plocal, weapon, cmd)
 end
 
 function proj.Draw()
-	if not best_target or not best_target.index then
-		return
-	end
-
 	local pLocal = entities.GetLocalPlayer()
 	if not pLocal then
 		return
@@ -556,6 +597,7 @@ function proj.Draw()
 
 	if (globals.CurTime() - displayed_time) > 0 then
 		displayed_path = {}
+		displayed_projectile_path = {}
 	end
 
 	if pLocal:IsAlive() == false then
@@ -592,6 +634,24 @@ function proj.Draw()
 				end
 			end
 			last_pos = pos
+		end
+	end
+
+	if displayed_projectile_path then
+		local last_pos = nil
+		for i, path in pairs(displayed_projectile_path) do
+			if last_pos then
+				local screen_current = client.WorldToScreen(path.pos)
+				local screen_last = client.WorldToScreen(last_pos)
+
+				if screen_current and screen_last then
+					-- sick ass fade
+					local alpha = math.max(25, 255 - (i * 5))
+					draw.Color(255, 255, 255, alpha)
+					draw.Line(screen_last[1], screen_last[2], screen_current[1], screen_current[2])
+				end
+			end
+			last_pos = path.pos
 		end
 	end
 end
