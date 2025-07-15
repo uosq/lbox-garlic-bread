@@ -3,10 +3,7 @@ local sim = {}
 local position_samples = {}
 local velocity_samples = {}
 local MAX_ALLOWED_SPEED = 2000 -- HU/sec
-local SAMPLE_COUNT = 8
-
---- ngl im proud of this function
---- this little fella is the goat
+local SAMPLE_COUNT = 16
 
 ---@class Sample
 ---@field pos Vector3
@@ -30,7 +27,7 @@ local function AddPositionSample(pEntity)
 	local samples = position_samples[index]
 	samples[#samples + 1] = sample
 
-	-- Calculate velocity from last sample
+	-- calculate velocity from last sample
 	if #samples >= 2 then
 		local prev = samples[#samples - 1]
 		local dt = current_time - prev.time
@@ -58,23 +55,43 @@ local function AddPositionSample(pEntity)
 	end
 end
 
+----@param vecPredictedPos Vector3
+----@param vecMins Vector3
+----@param vecMaxs Vector3
+----@param pTarget Entity
+----@param flStepHeight number
+----@return boolean
+--[[local function IsOnGround(vecPredictedPos, vecMins, vecMaxs, pTarget, flStepHeight)
+local function shouldHit(ent)
+	return ent:GetIndex() ~= pTarget:GetIndex()
+end
+
+local step = Vector3(0, 0, -flStepHeight)
+
+local trace =
+engine.TraceHull(vecPredictedPos, vecPredictedPos + step, vecMins, vecMaxs, MASK_PLAYERSOLID, shouldHit)
+if trace and trace.fraction < 1 then
+	return false
+end
+
+return true
+end]]
+
 ---@param position Vector3
 ---@param mins Vector3
 ---@param maxs Vector3
 ---@param pTarget Entity
 ---@param step_height number
----@return boolean, Vector3|nil
+---@return boolean
 local function IsOnGround(position, mins, maxs, pTarget, step_height)
 	local function shouldHit(ent)
 		return ent:GetIndex() ~= pTarget:GetIndex()
 	end
 
-	local ground_check_distance = 2
-
 	-- first, trace down from the bottom of the bounding box
 	local bbox_bottom = position + Vector3(0, 0, mins.z)
 	local trace_start = bbox_bottom
-	local trace_end = bbox_bottom + Vector3(0, 0, -ground_check_distance)
+	local trace_end = bbox_bottom + Vector3(0, 0, -step_height)
 
 	local trace =
 		engine.TraceHull(trace_start, trace_end, Vector3(0, 0, 0), Vector3(0, 0, 0), MASK_SHOT_HULL, shouldHit)
@@ -94,12 +111,12 @@ local function IsOnGround(position, mins, maxs, pTarget, step_height)
 
 			-- ff we can fit in the space above the ground, we're grounded
 			if not step_trace or step_trace.fraction >= 1 then
-				return true, surface_normal
+				return true
 			end
 		end
 	end
 
-	return false, nil
+	return false
 end
 
 ---@param pEntity Entity
@@ -144,15 +161,15 @@ local function GetSmoothedAngularVelocity(pEntity)
 		return (vec.x == 0 and vec.y == 0) and 0 or math.deg(math.atan(vec.y, vec.x))
 	end
 
-	-- First pass: Calculate raw angular velocities with movement threshold
+	-- first pass: Calculate raw angular velocities with movement threshold
 	local ang_vels = {}
-	local MIN_MOVEMENT = 0.1 -- Ignore tiny movements that are likely noise
+	local MIN_MOVEMENT = 0.1 -- ignore tiny movements that are likely noise
 
 	for i = 1, #samples - 2 do
 		local d1 = samples[i + 1].pos - samples[i].pos
 		local d2 = samples[i + 2].pos - samples[i + 1].pos
 
-		-- Skip if movement is too small (likely noise)
+		-- skip if movement is too small (likely noise)
 		if d1:Length() < MIN_MOVEMENT or d2:Length() < MIN_MOVEMENT then
 			goto continue
 		end
@@ -161,8 +178,8 @@ local function GetSmoothedAngularVelocity(pEntity)
 		local yaw2 = GetYaw(d2)
 		local diff = (yaw2 - yaw1 + 180) % 360 - 180
 
-		-- Filter out extreme jumps (likely noise)
-		if math.abs(diff) < 120 then -- Ignore impossible turns
+		-- filter out extreme jumps (likely noise)
+		if math.abs(diff) < 120 then -- ignore impossible turns
 			ang_vels[#ang_vels + 1] = diff
 		end
 
@@ -173,15 +190,15 @@ local function GetSmoothedAngularVelocity(pEntity)
 		return 0
 	end
 
-	-- Second pass: Apply median filter to remove outliers
+	-- second pass: Apply median filter to remove outliers
 	if #ang_vels >= 3 then
 		local filtered_vels = {}
 		for i = 1, #ang_vels do
 			if i == 1 or i == #ang_vels then
-				-- Keep edge values
+				-- keep edge values
 				filtered_vels[i] = ang_vels[i]
 			else
-				-- Use median of 3 consecutive values
+				-- use median of 3 consecutive values
 				local window = { ang_vels[i - 1], ang_vels[i], ang_vels[i + 1] }
 				table.sort(window)
 				filtered_vels[i] = window[2] -- median
@@ -190,27 +207,27 @@ local function GetSmoothedAngularVelocity(pEntity)
 		ang_vels = filtered_vels
 	end
 
-	-- Third pass: Exponential smoothing with adaptive alpha
+	-- third pass: Exponential smoothing with adaptive alpha
 	local grounded = IsPlayerOnGround(pEntity)
-	local base_alpha = grounded and 0.4 or 0.2 -- More responsive smoothing
+	local base_alpha = grounded and 0.4 or 0.2
 
 	local smoothed = ang_vels[1]
 	for i = 2, #ang_vels do
 		-- Adaptive alpha based on change magnitude
 		local change = math.abs(ang_vels[i] - smoothed)
-		local alpha = base_alpha * math.min(1, change / 30) -- Reduce smoothing for large changes
-		alpha = math.max(0.1, alpha) -- Minimum smoothing
+		local alpha = base_alpha * math.min(1, change / 30) -- reduce smoothing for large changes
+		alpha = math.max(0.1, alpha) -- minimum smoothing
 
 		smoothed = (ang_vels[i] * alpha) + (smoothed * (1 - alpha))
 	end
 
-	-- Apply deadzone for very small movements
+	-- apply deadzone for very small movements
 	local DEADZONE = 2.0
 	if math.abs(smoothed) < DEADZONE then
 		smoothed = 0
 	end
 
-	-- Clamp to reasonable range
+	-- clamp to reasonable range
 	local MAX_ANG_VEL = 45
 	return math.max(-MAX_ANG_VEL, math.min(smoothed, MAX_ANG_VEL))
 end
@@ -272,7 +289,6 @@ function sim.Run(stepSize, pTarget, time)
 		local trace = engine.TraceHull(last_pos, next_pos, mins, maxs, MASK_PLAYERSOLID, shouldHitEntity)
 
 		if trace.fraction < 1.0 then
-			-- only try stair step if not airborne (falling fast)
 			if smoothed_velocity.z >= -50 then
 				local step_up = last_pos + Vector3(0, 0, stepSize)
 				local step_up_trace = engine.TraceHull(last_pos, step_up, mins, maxs, MASK_PLAYERSOLID, shouldHitEntity)
@@ -283,16 +299,35 @@ function sim.Run(stepSize, pTarget, time)
 						engine.TraceHull(step_up, step_forward, mins, maxs, MASK_PLAYERSOLID, shouldHitEntity)
 
 					if step_forward_trace.fraction > 0 then
-						-- successful stair step
-						next_pos = step_forward_trace.endpos
-						last_pos = next_pos
-						positions[#positions + 1] = last_pos
-						goto continue
+						local step_down_start = step_forward_trace.endpos
+						local step_down_end = step_down_start + Vector3(0, 0, -stepSize)
+						local step_down_trace = engine.TraceHull(
+							step_down_start,
+							step_down_end,
+							mins,
+							maxs,
+							MASK_PLAYERSOLID,
+							shouldHitEntity
+						)
+
+						if step_down_trace.fraction < 1.0 then
+							-- check if the surface is walkable
+							local surface_normal = step_down_trace.plane
+							local ground_angle = math.deg(math.acos(surface_normal:Dot(Vector3(0, 0, 1))))
+							local actual_step_height = step_down_start.z - step_down_trace.endpos.z
+
+							if ground_angle <= 45 and actual_step_height <= stepSize and actual_step_height > 0.1 then
+								next_pos = step_down_trace.endpos
+								last_pos = next_pos
+								positions[#positions + 1] = last_pos
+								goto continue
+							end
+						end
 					end
 				end
 			end
 
-			-- failed stair step, do slide
+			-- Failed step-up validation or step-up attempt - do slide
 			next_pos = trace.endpos
 			local normal = trace.plane
 			local dot = smoothed_velocity:Dot(normal)
@@ -302,7 +337,6 @@ function sim.Run(stepSize, pTarget, time)
 			positions[#positions + 1] = last_pos
 		end
 
-		-- only check ground if velocity.z is down
 		if smoothed_velocity.z <= 0.1 then
 			local ground_trace = engine.TraceLine(next_pos, next_pos + down_vector, MASK_PLAYERSOLID, shouldHitEntity)
 			was_onground = ground_trace and ground_trace.fraction < 1.0
@@ -310,7 +344,6 @@ function sim.Run(stepSize, pTarget, time)
 			was_onground = false
 		end
 
-		-- gravity
 		if not was_onground then
 			smoothed_velocity.z = smoothed_velocity.z - gravity_step
 		elseif smoothed_velocity.z < 0 then

@@ -608,7 +608,7 @@ function proj.Draw()
 
 				if screen_current and screen_last then
 					-- sick ass fade
-					local alpha = math.max(25, 255 - (i * 5))
+					local alpha = math.max(5, 255 - (i * 5))
 					draw.Color(255, 255, 255, alpha)
 					draw.Line(screen_last[1], screen_last[2], screen_current[1], screen_current[2])
 
