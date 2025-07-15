@@ -311,15 +311,17 @@ local function GetClosestPlayerToFov(plocal, weapon, settings, utils, ent_utils,
 			and player:GetTeamNumber() ~= plocal:GetTeamNumber()
 			and player:InCond(E_TFCOND.TFCond_Cloaked) == false
 		then
-			-- get the visible body part info for this player
-			local player_info = ent_utils.FindVisibleBodyPart(player, shootpos, utils, viewangle, PREFERRED_BONES)
+			if (player:GetAbsOrigin() - plocal:GetAbsOrigin()):Length() < settings.aimbot.m_iMaxDistance then
+				-- get the visible body part info for this player
+				local player_info = ent_utils.FindVisibleBodyPart(player, shootpos, utils, viewangle, PREFERRED_BONES)
 
-			-- check if this player is visible and within the configured FOV limit
-			if player_info and player_info.fov and player_info.fov < settings.aimbot.fov then
-				-- check if this player is closer to crosshair than our current best
-				if player_info.fov < info.fov then
-					info = player_info
-					info.index = player:GetIndex()
+				-- check if this player is visible and within the configured FOV limit
+				if player_info and player_info.fov and player_info.fov < settings.aimbot.fov then
+					-- check if this player is closer to crosshair than our current best
+					if player_info.fov < info.fov then
+						info = player_info
+						info.index = player:GetIndex()
+					end
 				end
 			end
 		end
@@ -328,6 +330,12 @@ local function GetClosestPlayerToFov(plocal, weapon, settings, utils, ent_utils,
 	return info
 end
 
+---@param plocal Entity
+---@param weapon Entity
+---@param players table<integer, Entity>
+---@param settings GB_Settings
+---@param ent_utils GB_EntUtils
+---@param utils GB_Utils
 function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils)
 	local netchan = clientstate:GetNetChannel()
 	if not netchan then
@@ -391,48 +399,47 @@ function proj.RunBackground(plocal, weapon, players, settings, ent_utils, utils)
 	local projectile_speed = fForwardVelocity
 	local shootPos = GetShootPos(plocal, weapon)
 
-	local max_iterations = 10
 	local tolerance = 5.0 -- HU
-	local predicted_target_pos = target_ent:GetAbsOrigin()
-	local travel_time = 0.0
 	local stepSize = plocal:GetPropFloat("localdata", "m_flStepSize") or 18 -- i think 18 is the default, not sure
 
+	local base_origin = target_ent:GetAbsOrigin()
+	local dist = (shootPos - base_origin):Length()
+	if dist > settings.aimbot.m_iMaxDistance then
+		predicted_pos, simulated_pos, best_target = nil, {}, nil
+		return false, nil
+	end
+
+	local charge_time = 0.0
+	if weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_COMPOUND_BOW then
+		charge_time = globals.CurTime() - weapon:GetChargeBeginTime()
+		charge_time = (charge_time > 1.0) and 0 or charge_time
+	elseif weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_PIPEBOMBLAUNCHER then
+		charge_time = globals.CurTime() - weapon:GetChargeBeginTime()
+		charge_time = (charge_time > 4.0) and 0 or charge_time
+	end
+
+	--- mmake the interations be based on the distance
+	local max_iterations = (dist > (settings.aimbot.m_iMaxDistance * 0.5)) and 2 or 5
+	local predicted_target_pos = base_origin
+
 	for i = 1, max_iterations do
-		-- calculate travel time to predicted position
-		travel_time = EstimateTravelTime(shootPos, predicted_target_pos, projectile_speed)
-
-		local charge_time = 0.0
-		if weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_COMPOUND_BOW then
-			--charge_time = math.min(globals.CurTime() - weapon:GetChargeBeginTime(), 1.0)
-			charge_time = globals.CurTime() - weapon:GetChargeBeginTime()
-			if charge_time > 1 then
-				charge_time = 0
-			end
-		elseif weapon:GetWeaponID() == E_WeaponBaseID.TF_WEAPON_PIPEBOMBLAUNCHER then
-			charge_time = globals.CurTime() - weapon:GetChargeBeginTime()
-			if charge_time > 4.0 then
-				charge_time = 0
-			end
-		end
-
+		local travel_time = math.sqrt((shootPos - predicted_target_pos):LengthSqr()) / projectile_speed
 		total_time = travel_time + charge_time
 
-		-- predict where the target will be at that time
 		local player_positions = playerSim.Run(stepSize, target_ent, total_time)
 		if not player_positions or #player_positions == 0 then
 			break
 		end
 
-		local new_predicted_pos = player_positions[#player_positions]
+		local new_pos = player_positions[#player_positions]
+		local delta = (new_pos - predicted_target_pos):Length()
 
-		-- check if we've converged
-		local distance_diff = (new_predicted_pos - predicted_target_pos):Length()
-		if distance_diff < tolerance then
-			predicted_target_pos = new_predicted_pos
+		if delta < tolerance then
+			predicted_target_pos = new_pos
 			break
 		end
 
-		predicted_target_pos = new_predicted_pos
+		predicted_target_pos = new_pos
 		simulated_pos = player_positions
 	end
 
@@ -499,8 +506,6 @@ function proj.Run(utils, wep_utils, plocal, weapon, cmd)
 		if not (vOffset or fForwardVelocity or fUpwardVelocity or vCollisionMax or fGravity or fDrag) then
 			return false, nil
 		end
-
-		--local shootpos = ent_utils.GetShootPosition(plocal)
 
 		local vCollisionMin = -vCollisionMax
 

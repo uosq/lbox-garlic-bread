@@ -8,6 +8,7 @@ local settings = {
 		autoshoot = true,
 		fov = 30,
 		m_flPredictionTime = 2.0,
+		m_iMaxDistance = 2048,
 	},
 
 	antiaim = {

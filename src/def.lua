@@ -10,6 +10,7 @@
 ---@field fov number
 ---@field autoshoot boolean
 ---@field m_flPredictionTime number The number of max seconds the projectile prediction should run
+---@field m_iMaxDistance integer
 
 ---@class GB_Settings_AntiAim
 ---@field m_flPitch number
